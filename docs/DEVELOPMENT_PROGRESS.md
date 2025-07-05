@@ -1,5 +1,7 @@
 # Circuit Breaker - Development Progress Report
 
+🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/circuit-breaker/)** 🎮
+
 ## Project Status: CORE GAMEPLAY COMPLETE ✅
 
 **Date**: December 2024  

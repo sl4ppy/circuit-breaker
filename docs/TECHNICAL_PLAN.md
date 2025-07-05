@@ -2,6 +2,8 @@
 
 # Circuit Breaker - Technical Plan
 
+🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/circuit-breaker/)** 🎮
+
 ## IMPLEMENTATION STATUS: CORE ARCHITECTURE COMPLETE ✅
 
 **Last Updated**: December 2024  

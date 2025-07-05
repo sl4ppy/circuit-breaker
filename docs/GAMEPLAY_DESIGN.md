@@ -2,6 +2,8 @@
 
 # Circuit Breaker - Gameplay Design
 
+🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/circuit-breaker/)** 🎮
+
 ## Core Game Loop
 
 ### Primary Objective

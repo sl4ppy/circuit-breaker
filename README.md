@@ -6,7 +6,7 @@
 
 **Circuit Breaker** is a modern digital arcade game that reimagines the classic Ice Cold Beer arcade mechanics with a neon cyberpunk aesthetic. **The core gameplay mechanics are now fully implemented and functional!**
 
-🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/CircuitBreaker/)** 🎮
+🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/circuit-breaker/)** 🎮
 
 ## Current Development Status
 

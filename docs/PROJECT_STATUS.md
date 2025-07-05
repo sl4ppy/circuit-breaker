@@ -1,5 +1,7 @@
 # Circuit Breaker - Project Status Report
 
+🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/circuit-breaker/)** 🎮
+
 ## EXECUTIVE SUMMARY
 
 **Project**: Circuit Breaker (Neon Cyberpunk Arcade Game)  

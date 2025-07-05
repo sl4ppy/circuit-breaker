@@ -2,6 +2,8 @@
 
 # Circuit Breaker
 
+🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/circuit-breaker/)** 🎮
+
 ## Project Overview
 
 **Circuit Breaker** is a modern digital arcade game that reimagines the classic Ice Cold Beer arcade mechanics with a neon cyberpunk aesthetic. Players guide a glowing data packet through a vertical circuit board using a tilting bar, avoiding electrical hazards while delivering data to illuminated target ports.
