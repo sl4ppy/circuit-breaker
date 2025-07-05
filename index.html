@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Circuit Breaker - Neon Cyberpunk Arcade Game</title>
+    <meta name="description" content="Navigate the digital frontier in Circuit Breaker - where every pixel pulses with neon energy and every move could fry your data packet." />
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #000;
+        color: #00ffff;
+        font-family: 'Courier New', monospace;
+        overflow: hidden;
+      }
+      
+      #game-container {
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      
+      #game-canvas {
+        border: 2px solid #00ffff;
+        background: #1a1a1a;
+      }
+      
+      .loading {
+        text-align: center;
+        font-size: 24px;
+        color: #00ffff;
+      }
+      
+      .loading::after {
+        content: '';
+        animation: pulse 1.5s infinite;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { content: ''; }
+        50% { content: '...'; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game-container">
+      <div class="loading">Loading Circuit Breaker</div>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html> 

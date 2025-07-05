@@ -1,0 +1,55 @@
+{
+  "name": "circuit-breaker",
+  "version": "0.1.0",
+  "description": "A neon cyberpunk arcade game where players guide data packets through circuit boards",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write \"src/**/*.{ts,tsx}\""
+  },
+  "keywords": [
+    "game",
+    "arcade",
+    "cyberpunk",
+    "neon",
+    "physics",
+    "typescript",
+    "html5",
+    "canvas"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "eslint": "^8.0.0",
+    "eslint-plugin-react-hooks": "^4.6.0",
+    "eslint-plugin-react-refresh": "^0.4.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^4.0.0",
+    "vitest": "^0.34.0",
+    "@vitest/ui": "^0.34.0"
+  },
+  "dependencies": {
+    "howler": "^2.2.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/circuit-breaker.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/circuit-breaker/issues"
+  },
+  "homepage": "https://github.com/yourusername/circuit-breaker#readme"
+} 
