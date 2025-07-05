@@ -27,6 +27,8 @@ Phaser Game Development Best Practices
 
     Keep the update loop lean; offload heavy work outside it.
 
+    Use and keep the plan files updates as work is completed.
+
 Windows Development Environment (with Cursor)
 
     Use Cursor as the main IDE, leveraging AI-assisted coding and refactoring.
