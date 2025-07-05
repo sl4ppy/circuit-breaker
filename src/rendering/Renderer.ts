@@ -115,6 +115,160 @@ export class Renderer {
   }
 
   /**
+   * Draw an obstacle with neon cyberpunk styling
+   */
+  public drawObstacle(obstacle: any): void {
+    if (!this.ctx) return
+
+    this.ctx.save()
+    
+    const centerX = obstacle.position.x + obstacle.size.x / 2
+    const centerY = obstacle.position.y + obstacle.size.y / 2
+    
+    switch (obstacle.type) {
+      case 'electrical_hazard':
+        // Draw electrical hazard with sparking effect
+        this.ctx.shadowColor = '#ff0080'
+        this.ctx.shadowBlur = obstacle.isActive ? 15 : 5
+        this.ctx.fillStyle = obstacle.isActive ? '#ff0080' : '#880040'
+        this.ctx.strokeStyle = '#ff44aa'
+        this.ctx.lineWidth = 2
+        
+        // Draw main hazard rectangle
+        this.ctx.fillRect(obstacle.position.x, obstacle.position.y, obstacle.size.x, obstacle.size.y)
+        this.ctx.strokeRect(obstacle.position.x, obstacle.position.y, obstacle.size.x, obstacle.size.y)
+        
+        // Draw sparks if active
+        if (obstacle.isActive) {
+          this.drawElectricalSparks(centerX, centerY, obstacle.size.x)
+        }
+        
+        // Draw warning symbol
+        this.ctx.fillStyle = '#ffff00'
+        this.ctx.font = '12px monospace'
+        this.ctx.textAlign = 'center'
+        this.ctx.fillText('⚡', centerX, centerY + 4)
+        break
+        
+      case 'barrier':
+        // Draw solid barrier
+        this.ctx.shadowColor = '#00ffff'
+        this.ctx.shadowBlur = 10
+        this.ctx.fillStyle = '#006677'
+        this.ctx.strokeStyle = '#00ffff'
+        this.ctx.lineWidth = 2
+        
+        this.ctx.fillRect(obstacle.position.x, obstacle.position.y, obstacle.size.x, obstacle.size.y)
+        this.ctx.strokeRect(obstacle.position.x, obstacle.position.y, obstacle.size.x, obstacle.size.y)
+        break
+        
+      case 'hole':
+        // Draw hole/pit
+        this.ctx.shadowColor = '#ff4400'
+        this.ctx.shadowBlur = 8
+        this.ctx.fillStyle = '#220000'
+        this.ctx.strokeStyle = '#ff4400'
+        this.ctx.lineWidth = 2
+        
+        this.ctx.fillRect(obstacle.position.x, obstacle.position.y, obstacle.size.x, obstacle.size.y)
+        this.ctx.strokeRect(obstacle.position.x, obstacle.position.y, obstacle.size.x, obstacle.size.y)
+        break
+    }
+    
+    this.ctx.restore()
+  }
+
+  /**
+   * Draw electrical sparks effect
+   */
+  private drawElectricalSparks(centerX: number, centerY: number, size: number): void {
+    if (!this.ctx) return
+
+    this.ctx.save()
+    this.ctx.strokeStyle = '#ffffff'
+    this.ctx.lineWidth = 1
+    this.ctx.globalAlpha = 0.8
+    
+    // Draw random spark lines
+    for (let i = 0; i < 5; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const length = Math.random() * size * 0.5
+      const startX = centerX + Math.cos(angle) * 5
+      const startY = centerY + Math.sin(angle) * 5
+      const endX = startX + Math.cos(angle) * length
+      const endY = startY + Math.sin(angle) * length
+      
+      this.ctx.beginPath()
+      this.ctx.moveTo(startX, startY)
+      this.ctx.lineTo(endX, endY)
+      this.ctx.stroke()
+    }
+    
+    this.ctx.restore()
+  }
+
+  /**
+   * Draw a target port with glow effect
+   */
+  public drawTargetPort(port: any): void {
+    if (!this.ctx) return
+
+    this.ctx.save()
+    
+    // Draw outer glow
+    this.ctx.shadowColor = port.color
+    this.ctx.shadowBlur = 20 * port.glowIntensity
+    this.ctx.fillStyle = port.color
+    this.ctx.globalAlpha = 0.3 * port.glowIntensity
+    
+    this.ctx.beginPath()
+    this.ctx.arc(port.position.x, port.position.y, port.radius + 10, 0, Math.PI * 2)
+    this.ctx.fill()
+    
+    // Draw main port circle
+    this.ctx.globalAlpha = port.isCompleted ? 0.5 : 0.8
+    this.ctx.shadowBlur = 10
+    this.ctx.fillStyle = port.isCompleted ? '#333333' : port.color
+    
+    this.ctx.beginPath()
+    this.ctx.arc(port.position.x, port.position.y, port.radius, 0, Math.PI * 2)
+    this.ctx.fill()
+    
+    // Draw port ring
+    this.ctx.globalAlpha = 1
+    this.ctx.strokeStyle = port.isCompleted ? '#666666' : port.color
+    this.ctx.lineWidth = 3
+    this.ctx.shadowBlur = 5
+    
+    this.ctx.beginPath()
+    this.ctx.arc(port.position.x, port.position.y, port.radius, 0, Math.PI * 2)
+    this.ctx.stroke()
+    
+    // Draw center indicator
+    if (!port.isCompleted) {
+      this.ctx.fillStyle = '#ffffff'
+      this.ctx.shadowBlur = 0
+      this.ctx.beginPath()
+      this.ctx.arc(port.position.x, port.position.y, 4, 0, Math.PI * 2)
+      this.ctx.fill()
+    }
+    
+    // Draw completion checkmark
+    if (port.isCompleted) {
+      this.ctx.strokeStyle = '#00ff00'
+      this.ctx.lineWidth = 3
+      this.ctx.shadowBlur = 0
+      this.ctx.beginPath()
+      this.ctx.moveTo(port.position.x - 8, port.position.y)
+      this.ctx.lineTo(port.position.x - 2, port.position.y + 6)
+      this.ctx.lineTo(port.position.x + 8, port.position.y - 6)
+      this.ctx.stroke()
+    }
+    
+    this.ctx.restore()
+  }
+
+  /**
    * Get canvas context
    */
   public getContext(): CanvasRenderingContext2D | null {

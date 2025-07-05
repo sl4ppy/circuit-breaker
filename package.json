@@ -1,7 +1,7 @@
 {
   "name": "circuit-breaker",
-  "version": "0.1.0",
-  "description": "A neon cyberpunk arcade game where players guide data packets through circuit boards",
+  "version": "0.2.0",
+  "description": "A neon cyberpunk pinball game with realistic physics, level progression, and dynamic audio",
   "type": "module",
   "scripts": {
     "dev": "vite",

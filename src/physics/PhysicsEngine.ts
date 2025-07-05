@@ -70,6 +70,9 @@ export class PhysicsEngine {
   // Performance tracking
   private debug: boolean = false
   private collisionManifolds: CollisionManifold[] = []
+  
+  // Audio callback for collision sounds
+  private audioCallback: ((velocity: number, type: string) => void) | null = null
 
   constructor() {
     Debug.log('⚡ Advanced PhysicsEngine initialized with Verlet integration')
@@ -80,6 +83,13 @@ export class PhysicsEngine {
    */
   public setTiltingBar(bar: any): void {
     this.tiltingBar = bar
+  }
+
+  /**
+   * Set audio callback for collision sounds
+   */
+  public setAudioCallback(callback: (velocity: number, type: string) => void): void {
+    this.audioCallback = callback
   }
 
   /**
@@ -537,6 +547,12 @@ export class PhysicsEngine {
           // Update previous position to reflect new velocity
           obj.previousPosition.x = obj.position.x - reflectedVelocity.x
           obj.previousPosition.y = obj.position.y - reflectedVelocity.y
+          
+          // Play bounce sound based on collision velocity
+          if (this.audioCallback) {
+            const collisionVelocity = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
+            this.audioCallback(collisionVelocity, 'bounce')
+          }
         } else {
           // Ball is resting on or gently touching the bar - apply rolling physics
           this.applyRollingPhysics(obj, barTangent, barNormal, velocityAlongTangent, this.deltaTime)
@@ -628,6 +644,12 @@ export class PhysicsEngine {
         if (velocity.y > 0) {
           obj.previousPosition.y = obj.position.y + velocity.y * obj.restitution
           obj.previousPosition.x = obj.position.x - velocity.x * 0.8 // Floor friction
+          
+          // Play bounce sound for floor collision
+          if (this.audioCallback) {
+            const collisionVelocity = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
+            this.audioCallback(collisionVelocity, 'bounce')
+          }
         }
       }
       
@@ -640,6 +662,12 @@ export class PhysicsEngine {
         }
         if (velocity.x < 0) {
           obj.previousPosition.x = obj.position.x + velocity.x * obj.restitution
+          
+          // Play bounce sound for wall collision
+          if (this.audioCallback) {
+            const collisionVelocity = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
+            this.audioCallback(collisionVelocity, 'bounce')
+          }
         }
       } else if (obj.position.x + obj.radius > this.bounds.width) {
         obj.position.x = this.bounds.width - obj.radius
@@ -649,6 +677,12 @@ export class PhysicsEngine {
         }
         if (velocity.x > 0) {
           obj.previousPosition.x = obj.position.x + velocity.x * obj.restitution
+          
+          // Play bounce sound for wall collision
+          if (this.audioCallback) {
+            const collisionVelocity = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
+            this.audioCallback(collisionVelocity, 'bounce')
+          }
         }
       }
     }
