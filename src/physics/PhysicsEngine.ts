@@ -65,10 +65,7 @@ export class PhysicsEngine {
   private bounds = { width: 360, height: 640 }
   
   // Simulation parameters (optimized for performance)
-  private constraintIterations: number = 1
-  private substeps: number = 1
   private deltaTime: number = 1 / 60
-  private timeAccumulator: number = 0
   
   // Performance tracking
   private debug: boolean = false
@@ -318,7 +315,7 @@ export class PhysicsEngine {
   /**
    * Solve angle constraint (maintain angle between objects)
    */
-  private solveAngleConstraint(constraint: Constraint): void {
+  private solveAngleConstraint(_constraint: Constraint): void {
     // Implementation for angle constraints if needed
     // This is more complex and depends on specific requirements
   }
@@ -385,6 +382,7 @@ export class PhysicsEngine {
   /**
    * Resolve collision using impulse-based method
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private resolveCollision(manifold: CollisionManifold): void {
     const objA = manifold.objectA
     const objB = manifold.objectB
@@ -509,7 +507,6 @@ export class PhysicsEngine {
         }
         
         // Position correction - place ball exactly at collision distance from bar surface
-        const penetration = collisionDistance - distanceToCenterLine
         obj.position.x = barSurfacePoint.x + barNormal.x * obj.radius
         obj.position.y = barSurfacePoint.y + barNormal.y * obj.radius
         
@@ -551,7 +548,7 @@ export class PhysicsEngine {
   /**
    * Apply realistic rolling physics when ball is on the tilted bar
    */
-  private applyRollingPhysics(obj: any, barTangent: { x: number; y: number }, barNormal: { x: number; y: number }, currentTangentVelocity: number, dt: number): void {
+  private applyRollingPhysics(obj: any, barTangent: { x: number; y: number }, _barNormal: { x: number; y: number }, currentTangentVelocity: number, dt: number): void {
     // Calculate the component of gravity along the bar slope
     const gravityAlongSlope = this.gravity.x * barTangent.x + this.gravity.y * barTangent.y
     
@@ -711,6 +708,7 @@ export class PhysicsEngine {
   /**
    * Get objects in nearby cells for collision detection
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private getNearbyObjects(obj: PhysicsObject): PhysicsObject[] {
     const nearby: PhysicsObject[] = []
     const cells = this.getObjectCells(obj)
@@ -797,11 +795,11 @@ export class PhysicsEngine {
     return this.gravity.y // Return Y gravity for compatibility
   }
 
-  public setFriction(friction: number): void {
+  public setFriction(_friction: number): void {
     Debug.log(`Legacy friction setting ignored - use per-object friction instead`)
   }
 
-  public setBounceEnergy(energy: number): void {
+  public setBounceEnergy(_energy: number): void {
     Debug.log(`Legacy bounce energy setting ignored - use per-object restitution instead`)
   }
 } 

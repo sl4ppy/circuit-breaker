@@ -1,5 +1,4 @@
 import { Vector2 } from '../utils/MathUtils'
-import { PhysicsObject } from '../physics/PhysicsEngine'
 
 export interface TiltingBarConfig {
   position: Vector2
@@ -10,9 +9,8 @@ export interface TiltingBarConfig {
   friction: number // Surface friction for ball interactions
 }
 
-export class TiltingBar implements PhysicsObject {
+export class TiltingBar {
   public position: Vector2
-  public velocity: Vector2 = { x: 0, y: 0 }
   public rotation: number = 0
   public targetRotation: number = 0
   public leftSideHeight: number = 590 // Absolute Y position for left side (start at bottom)
@@ -25,8 +23,6 @@ export class TiltingBar implements PhysicsObject {
   public maxRotation: number
   public rotationSpeed: number
   public friction: number
-  public isStatic: boolean = true // Bar doesn't move, only rotates
-  public type: 'dynamic' | 'static' = 'static'
   
   // Visual properties
   public color: string = '#00ffff' // Neon cyan
@@ -79,7 +75,7 @@ export class TiltingBar implements PhysicsObject {
   /**
    * Update the bar's rotation based on current side heights
    */
-  public update(deltaTime: number): void {
+  public update(_deltaTime: number): void {
     // Calculate rotation based on height difference
     const heightDifference = this.rightSideHeight - this.leftSideHeight
     const maxHeightRange = this.maxSideHeight - this.minSideHeight
@@ -161,9 +157,6 @@ export class TiltingBar implements PhysicsObject {
     const endpoints = this.getEndpoints()
     const normal = this.getNormal()
     
-    // Find closest point on the bar to the ball
-    const closestPoint = this.getClosestPointOnBar(ballPosition)
-    
     // Calculate penetration depth
     const distanceToBar = this.distanceToLineSegment(ballPosition, endpoints.start, endpoints.end)
     const penetrationDepth = ballRadius + this.thickness / 2 - distanceToBar
@@ -199,22 +192,5 @@ export class TiltingBar implements PhysicsObject {
     }
   }
 
-  /**
-   * Get the closest point on the bar to a given point
-   */
-  private getClosestPointOnBar(point: Vector2): Vector2 {
-    const endpoints = this.getEndpoints()
-    const dx = endpoints.end.x - endpoints.start.x
-    const dy = endpoints.end.y - endpoints.start.y
-    const length = Math.sqrt(dx * dx + dy * dy)
-    
-    if (length === 0) return endpoints.start
-    
-    const t = Math.max(0, Math.min(1, ((point.x - endpoints.start.x) * dx + (point.y - endpoints.start.y) * dy) / (length * length)))
-    
-    return {
-      x: endpoints.start.x + t * dx,
-      y: endpoints.start.y + t * dy
-    }
-  }
+
 } 

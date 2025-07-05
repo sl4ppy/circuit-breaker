@@ -219,7 +219,7 @@ export class InputManager {
   /**
    * Handle mouse up events
    */
-  private handleMouseUp(event: MouseEvent): void {
+  private handleMouseUp(_event: MouseEvent): void {
     this.inputState.mouse.isDown = false
     this.inputState.mouse.button = -1
   }

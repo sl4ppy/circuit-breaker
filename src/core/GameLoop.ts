@@ -73,7 +73,7 @@ export class GameLoop {
   /**
    * Update game logic
    */
-  private update(gameState: GameState, deltaTime: number): void {
+  private update(_gameState: GameState, deltaTime: number): void {
     // Update game logic if available
     if (this.game && this.game.update) {
       this.game.update(deltaTime)
