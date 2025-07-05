@@ -1,0 +1,28 @@
+---
+description: Phaser + Cursor Game Dev Rules
+globs: ["**/*.js", "**/*.ts"]
+alwaysApply: true
+---
+
+- Organize Phaser code with ES Modules or classes, using one file per Scene or system.
+- Preload assets with clear, consistent keys and define all keys/configuration as constants or enums.
+- Use Groups and Containers to organize related objects logically.
+- Stick to one Physics system (Arcade, Matter, or Impact) unless mixing intentionally.
+- Optimize mobile performance by reducing draw calls, compressing assets, and using texture atlases.
+- Provide user feedback during loading with Loader events like progress bars.
+- Handle screen resizing and orientation changes gracefully on all devices.
+- Avoid global variables; use classes, modules, or the game registry for shared state.
+- Write clear, meaningful comments explaining why when necessary.
+- Keep the update loop lean and offload heavy work outside it.
+- Use Cursor as the main IDE, leveraging its AI-assisted coding, refactoring, and chat features.
+- Install Node.js (LTS) via the official Windows installer for package management and dev servers.
+- Use Git for Windows with Git Bash or Cursor’s built-in terminal for Git commands.
+- Configure Git with user name and email and enable line-ending normalization with core.autocrlf true.
+- Define and use npm scripts in package.json for builds and development tasks.
+- Store and maintain coding rules and naming conventions in Cursor’s Custom Instructions.
+- Organize the workspace clearly, separating src, assets, and build outputs.
+- Test the game in multiple browsers on Windows (Chrome, Edge, Firefox) for compatibility.
+- Use Cursor’s built-in terminal consistently for Git, npm, and deployment commands.
+- Regularly update dependencies with npm outdated and npm update.
+- Scan for security issues using npm audit and address them.
+- Back up the project folder regularly using GitHub and optional local or cloud backups.
