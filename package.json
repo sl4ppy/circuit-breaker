@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
+    "test:run": "vitest run",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write \"src/**/*.{ts,tsx}\""
   },
@@ -22,7 +23,7 @@
     "html5",
     "canvas"
   ],
-  "author": "Your Name",
+  "author": "sl4ppy",
   "license": "MIT",
   "devDependencies": {
     "@types/node": "^20.0.0",
@@ -46,10 +47,10 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/yourusername/circuit-breaker.git"
+    "url": "https://github.com/sl4ppy/circuit-breaker.git"
   },
   "bugs": {
-    "url": "https://github.com/yourusername/circuit-breaker/issues"
+    "url": "https://github.com/sl4ppy/circuit-breaker/issues"
   },
-  "homepage": "https://github.com/yourusername/circuit-breaker#readme"
+  "homepage": "https://github.com/sl4ppy/circuit-breaker#readme"
 } 

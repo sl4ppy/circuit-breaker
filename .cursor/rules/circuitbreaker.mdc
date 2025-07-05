@@ -1,0 +1,54 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+Phaser Game Development Best Practices
+
+    Organize code with ES Modules or classes; one file per Scene or system.
+
+    Preload assets with clear, consistent keys.
+
+    Define all keys and configuration as constants or enums.
+
+    Use Groups and Containers for logical object organization.
+
+    Stick to one Physics system (Arcade, Matter, or Impact) unless intentional.
+
+    Optimize for mobile: reduce draw calls, compress assets, use texture atlases.
+
+    Provide loading feedback with Loader events (progress bar).
+
+    Handle screen resizing and orientation changes gracefully.
+
+    Avoid global variables; use classes, modules, or game registry for shared state.
+
+    Write clear, meaningful comments explaining why when needed.
+
+    Keep the update loop lean; offload heavy work outside it.
+
+Windows Development Environment (with Cursor)
+
+    Use Cursor as the main IDE, leveraging AI-assisted coding and refactoring.
+
+    Install Node.js (LTS) via the official Windows installer.
+
+    Use Git for Windows (Git Bash or Cursor’s terminal).
+
+    Enable line-ending normalization with core.autocrlf true.
+
+    Define and use npm scripts for builds and development tasks.
+
+    Store coding rules and naming conventions in Cursor’s Custom Instructions.
+
+    Keep workspace organized: separate src, assets, and build outputs.
+
+    Test in multiple browsers on Windows (Chrome, Edge, Firefox).
+
+    Run Git, npm, and deployment commands in Cursor’s built-in terminal.
+
+    Regularly update dependencies with npm outdated and npm update.
+
+    Scan for security issues with npm audit and fix them.
+
+    Back up the project folder regularly using GitHub and optional local/cloud backups.
