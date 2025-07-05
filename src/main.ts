@@ -3,9 +3,11 @@
 
 import './style.css'
 import { Game } from './core/Game'
+import { Renderer } from './rendering/Renderer'
 
 // Global game instance
 let game: Game | null = null
+let renderer: Renderer | null = null
 
 /**
  * Initialize the game when DOM is ready
@@ -13,6 +15,24 @@ let game: Game | null = null
 async function initGame(): Promise<void> {
   try {
     console.log('🚀 Circuit Breaker - Loading...')
+
+    // Create canvas element
+    const gameContainer = document.getElementById('game-container')
+    if (!gameContainer) {
+      throw new Error('Game container not found')
+    }
+
+    // Clear loading message and create canvas
+    gameContainer.innerHTML = ''
+    const canvas = document.createElement('canvas')
+    canvas.id = 'game-canvas'
+    canvas.width = 360  // 9:16 aspect ratio (mobile portrait)
+    canvas.height = 640
+    gameContainer.appendChild(canvas)
+
+    // Initialize renderer
+    renderer = new Renderer()
+    renderer.init(canvas)
 
     // Create game instance
     game = new Game()
