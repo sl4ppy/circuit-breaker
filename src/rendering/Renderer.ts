@@ -3,6 +3,7 @@
 
 import { Debug } from '../utils/Debug'
 import { fontManager } from '../utils/FontManager'
+import { spriteAtlas } from './SpriteAtlas.js'
 
 export class Renderer {
   private canvas: HTMLCanvasElement | null = null
@@ -11,7 +12,6 @@ export class Renderer {
   private height: number = 600
   
   // Sprite images
-  private ballSprite: HTMLImageElement | null = null
   private backgroundSprite: HTMLImageElement | null = null
   private spritesLoaded: boolean = false
 
@@ -21,28 +21,24 @@ export class Renderer {
   }
 
   /**
-   * Load sprite images
+   * Load sprite images and atlas
    */
   private async loadSprites(): Promise<void> {
     try {
-      // Load ball sprite (using relative paths for GitHub Pages compatibility)
-      this.ballSprite = new Image()
-      this.ballSprite.src = './assets/sprites/ball_01.png'
-      
       // Load background sprite (using relative paths for GitHub Pages compatibility)
       this.backgroundSprite = new Image()
       this.backgroundSprite.src = './assets/sprites/playfield_background_02.png'
       
-      // Wait for both images to load with individual error handling
+      // Load sprite atlas
+      const atlasPromise = spriteAtlas.load()
+      
+      // Wait for background and atlas to load with individual error handling
       const spritePromises = [
-        new Promise<string>((resolve, reject) => {
-          this.ballSprite!.onload = () => resolve('ball')
-          this.ballSprite!.onerror = (e) => reject({ sprite: 'ball', error: e })
-        }),
         new Promise<string>((resolve, reject) => {
           this.backgroundSprite!.onload = () => resolve('background')
           this.backgroundSprite!.onerror = (e) => reject({ sprite: 'background', error: e })
-        })
+        }),
+        atlasPromise.then(() => 'atlas').catch((e) => Promise.reject({ sprite: 'atlas', error: e }))
       ]
       
       const results = await Promise.allSettled(spritePromises)
@@ -51,20 +47,20 @@ export class Renderer {
       results.forEach((result, index) => {
         if (result.status === 'fulfilled') {
           loadedCount++
-          Debug.log(`✅ ${result.value} sprite loaded successfully`)
+          Debug.log(`✅ ${result.value} loaded successfully`)
         } else {
           const { sprite, error } = result.reason
-          Debug.log(`❌ Failed to load ${sprite} sprite:`, error)
+          Debug.log(`❌ Failed to load ${sprite}:`, error)
         }
       })
       
-      // Consider sprites loaded if at least one loads (background is optional)
+      // Consider sprites loaded if at least one loads (background is optional, atlas provides balls)
       this.spritesLoaded = loadedCount > 0
       
       if (loadedCount === 2) {
-        Debug.log('🎨 All sprites loaded successfully')
+        Debug.log('🎨 All sprites and atlas loaded successfully')
       } else if (loadedCount === 1) {
-        Debug.log('⚠️ Some sprites loaded, game will use fallbacks')
+        Debug.log('⚠️ Some sprites loaded, game will use fallbacks where needed')
       } else {
         Debug.log('❌ No sprites loaded, game will use fallbacks')
       }
@@ -468,9 +464,9 @@ export class Renderer {
     // Set global opacity for animation
     this.ctx.globalAlpha = opacity
 
-    // Use sprite if loaded, otherwise fallback to procedural rendering
-    if (this.spritesLoaded && this.ballSprite) {
-      // Draw sprite-based ball
+    // Use sprite atlas if loaded, otherwise fallback to procedural rendering
+    if (this.spritesLoaded && spriteAtlas.isAtlasLoaded()) {
+      // Draw sprite-based ball from atlas
       const spriteSize = radius * 2 * scale
       
       // Draw shadow behind sprite
@@ -479,13 +475,14 @@ export class Renderer {
       this.ctx.arc(x + radius * scale * 0.1, y + radius * scale * 0.1, radius * scale, 0, Math.PI * 2)
       this.ctx.fill()
       
-      // Draw the ball sprite
-      this.ctx.drawImage(
-        this.ballSprite,
+      // Draw the ball sprite from atlas
+      const ballSpriteName = 'ball_normal'
+      spriteAtlas.drawSprite(
+        this.ctx,
+        ballSpriteName,
         x - spriteSize / 2,  // Center horizontally
         y - spriteSize / 2,  // Center vertically
-        spriteSize,          // Width
-        spriteSize           // Height
+        spriteSize / 16      // Scale factor (assuming 16x16 sprite, adjust as needed)
       )
     } else {
       // Fallback to procedural chrome rendering
@@ -573,6 +570,59 @@ export class Renderer {
     }
 
     this.ctx.restore()
+  }
+
+  /**
+   * Draw a sprite from the atlas with optional scaling and positioning
+   */
+  public drawAtlasSprite(
+    spriteName: string, 
+    x: number, 
+    y: number, 
+    scale: number = 1,
+    centered: boolean = true
+  ): boolean {
+    if (!this.ctx || !spriteAtlas.isAtlasLoaded()) return false
+    
+    const frame = spriteAtlas.getFrame(spriteName)
+    if (!frame) return false
+    
+    const drawX = centered ? x - (frame.w * scale) / 2 : x
+    const drawY = centered ? y - (frame.h * scale) / 2 : y
+    
+    return spriteAtlas.drawSprite(this.ctx, spriteName, drawX, drawY, scale)
+  }
+
+  /**
+   * Draw a flipper using atlas sprites
+   */
+  public drawFlipper(flipper: any, isLeft: boolean): void {
+    if (!this.ctx) return
+    
+    const spriteName = isLeft ? 'flipper_left_down' : 'flipper_right_down'
+    this.drawAtlasSprite(spriteName, flipper.position.x, flipper.position.y, 2)
+  }
+
+  /**
+   * Draw a bumper using atlas sprites with animation
+   */
+  public drawBumper(bumper: any, isActive: boolean = false): void {
+    if (!this.ctx) return
+    
+    const spriteName = isActive ? 'round_bumper_active' : 'round_bumper_idle'
+    this.drawAtlasSprite(spriteName, bumper.position.x, bumper.position.y, 1.5)
+  }
+
+  /**
+   * Draw a spinner with rotation animation
+   */
+  public drawSpinner(spinner: any, animationFrame: number = 1): void {
+    if (!this.ctx) return
+    
+    // Cycle through spinner animation frames (1-4)
+    const frame = Math.max(1, Math.min(4, animationFrame))
+    const spriteName = `spinner_${frame}`
+    this.drawAtlasSprite(spriteName, spinner.position.x, spinner.position.y, 2)
   }
 
   /**
