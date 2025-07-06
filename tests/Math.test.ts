@@ -2,7 +2,7 @@
 // Unit tests for mathematical functions
 
 import { describe, it, expect } from 'vitest'
-import { MathUtils } from '../src/utils/Math'
+import { MathUtils } from '../src/utils/MathUtils'
 
 describe('MathUtils', () => {
   describe('clamp', () => {

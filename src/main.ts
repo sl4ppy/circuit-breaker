@@ -1,52 +1,56 @@
 // Circuit Breaker - Main Entry Point
 // A neon cyberpunk arcade game where players guide data packets through circuit boards
 
-import './style.css'
-import { Game } from './core/Game'
-import { Renderer } from './rendering/Renderer'
+import './style.css';
+import { Game } from './core/Game';
+import { Renderer } from './rendering/Renderer';
+import { logger } from './utils/Logger';
 
 // Global game instance
-let game: Game | null = null
-let renderer: Renderer | null = null
+let game: Game | null = null;
+let renderer: Renderer | null = null;
 
 /**
  * Initialize the game when DOM is ready
  */
 async function initGame(): Promise<void> {
   try {
-    console.log('🚀 Circuit Breaker - Loading...')
+    logger.info('🚀 Circuit Breaker - Loading...', null, 'Main');
 
     // Create canvas element
-    const gameContainer = document.getElementById('game-container')
+    const gameContainer = document.getElementById('game-container');
     if (!gameContainer) {
-      throw new Error('Game container not found')
+      throw new Error('Game container not found');
     }
 
     // Clear loading message and create canvas
-    gameContainer.innerHTML = ''
-    const canvas = document.createElement('canvas')
-    canvas.id = 'game-canvas'
-    canvas.width = 360  // 9:16 aspect ratio (mobile portrait)
-    canvas.height = 640
-    gameContainer.appendChild(canvas)
+    gameContainer.innerHTML = '';
+    const canvas = document.createElement('canvas');
+    canvas.id = 'game-canvas';
+    canvas.width = 360; // 9:16 aspect ratio (mobile portrait)
+    canvas.height = 640;
+    gameContainer.appendChild(canvas);
 
     // Initialize renderer
-    renderer = new Renderer()
-    renderer.init(canvas)
+    renderer = new Renderer();
+    renderer.init(canvas);
 
     // Create game instance
-    game = new Game()
+    game = new Game();
 
     // Initialize game systems
-    await game.init()
+    await game.init();
 
     // Start the game
-    game.start()
+    game.start();
 
-    console.log('✅ Circuit Breaker loaded successfully')
+    // Expose game instance to window for testing
+    (window as any).game = game;
+
+    logger.info('✅ Circuit Breaker loaded successfully', null, 'Main');
   } catch (error) {
-    console.error('❌ Failed to load Circuit Breaker:', error)
-    showErrorMessage('Failed to load game. Please refresh the page.')
+    logger.error('❌ Failed to load Circuit Breaker:', error, 'Main');
+    showErrorMessage('Failed to load game. Please refresh the page.');
   }
 }
 
@@ -54,7 +58,7 @@ async function initGame(): Promise<void> {
  * Show error message to user
  */
 function showErrorMessage(message: string): void {
-  const gameContainer = document.getElementById('game-container')
+  const gameContainer = document.getElementById('game-container');
   if (gameContainer) {
     gameContainer.innerHTML = `
       <div style="text-align: center; color: #b600f9;">
@@ -62,7 +66,7 @@ function showErrorMessage(message: string): void {
         <p>Error: ${message}</p>
         <p>Please refresh the page to try again.</p>
       </div>
-    `
+    `;
   }
 }
 
@@ -71,7 +75,7 @@ function showErrorMessage(message: string): void {
  */
 function handleResize(): void {
   // TODO: Handle canvas resize and UI adjustments
-  console.log('📱 Window resized')
+  logger.debug('📱 Window resized', null, 'Main');
 }
 
 /**
@@ -79,11 +83,11 @@ function handleResize(): void {
  */
 function handleVisibilityChange(): void {
   if (document.hidden) {
-    console.log('👁️ Page hidden - pausing game')
-    game?.pause()
+    logger.debug('👁️ Page hidden - pausing game', null, 'Main');
+    game?.pause();
   } else {
-    console.log('👁️ Page visible - resuming game')
-    game?.resume()
+    logger.debug('👁️ Page visible - resuming game', null, 'Main');
+    game?.resume();
   }
 }
 
@@ -91,21 +95,21 @@ function handleVisibilityChange(): void {
  * Handle before unload
  */
 function handleBeforeUnload(): void {
-  console.log('👋 Page unloading - stopping game')
-  game?.stop()
+  logger.debug('👋 Page unloading - stopping game', null, 'Main');
+  game?.stop();
 }
 
 // Initialize when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initGame)
+  document.addEventListener('DOMContentLoaded', initGame);
 } else {
-  initGame()
+  initGame();
 }
 
 // Add event listeners
-window.addEventListener('resize', handleResize)
-document.addEventListener('visibilitychange', handleVisibilityChange)
-window.addEventListener('beforeunload', handleBeforeUnload)
+window.addEventListener('resize', handleResize);
+document.addEventListener('visibilitychange', handleVisibilityChange);
+window.addEventListener('beforeunload', handleBeforeUnload);
 
 // Export for debugging
-export { game } 
+export { game };

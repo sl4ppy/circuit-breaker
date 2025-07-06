@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Circuit Breaker - Audio Test</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #000;
+            color: #b600f9;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        
+        .test-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #111;
+            padding: 20px;
+            border: 2px solid #b600f9;
+            border-radius: 10px;
+        }
+        
+        h1 {
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+        }
+        
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 5px;
+        }
+        
+        .test-button {
+            background: #b600f9;
+            color: #000;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+        }
+        
+        .test-button:hover {
+            background: #00ffff;
+            color: #000;
+        }
+        
+        .test-button:disabled {
+            background: #333;
+            color: #666;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        
+        .status.success {
+            background: #0a0;
+            color: #fff;
+        }
+        
+        .status.error {
+            background: #a00;
+            color: #fff;
+        }
+        
+        .status.info {
+            background: #00a;
+            color: #fff;
+        }
+        
+        .volume-controls {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+        }
+        
+        .volume-control {
+            text-align: center;
+        }
+        
+        .volume-control label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        
+        .volume-control input {
+            width: 100px;
+        }
+        
+        .log {
+            background: #000;
+            color: #0f0;
+            padding: 10px;
+            border: 1px solid #333;
+            border-radius: 5px;
+            height: 200px;
+            overflow-y: auto;
+            text-align: left;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🎵 Circuit Breaker Audio Test</h1>
+        
+        <div class="test-section">
+            <h3>Audio System Status</h3>
+            <div id="audio-status" class="status info">Checking audio system...</div>
+            <button class="test-button" onclick="checkAudioSystem()">Check Audio System</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>Sound Effects Test</h3>
+            <button class="test-button" onclick="testSound('ui_click')">UI Click</button>
+            <button class="test-button" onclick="testSound('ui_hover')">UI Hover</button>
+            <button class="test-button" onclick="testSound('ui_slide')">UI Slide</button>
+            <button class="test-button" onclick="testSound('bounce')">Ball Bounce</button>
+            <button class="test-button" onclick="testSound('target')">Target Hit</button>
+            <button class="test-button" onclick="testSound('level_complete')">Level Complete</button>
+            <button class="test-button" onclick="testSound('game_over')">Game Over</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>Volume Controls</h3>
+            <div class="volume-controls">
+                <div class="volume-control">
+                    <label>Master Volume</label>
+                    <input type="range" id="master-volume" min="0" max="1" step="0.1" value="0.7" onchange="setMasterVolume(this.value)">
+                    <span id="master-volume-value">70%</span>
+                </div>
+                <div class="volume-control">
+                    <label>Music Volume</label>
+                    <input type="range" id="music-volume" min="0" max="1" step="0.1" value="0.4" onchange="setMusicVolume(this.value)">
+                    <span id="music-volume-value">40%</span>
+                </div>
+                <div class="volume-control">
+                    <label>SFX Volume</label>
+                    <input type="range" id="sfx-volume" min="0" max="1" step="0.1" value="0.8" onchange="setSFXVolume(this.value)">
+                    <span id="sfx-volume-value">80%</span>
+                </div>
+            </div>
+            <button class="test-button" onclick="toggleMute()">Toggle Mute</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>Music Test</h3>
+            <button class="test-button" onclick="playMenuMusic()">Play Menu Music</button>
+            <button class="test-button" onclick="playGameplayMusic()">Play Gameplay Music</button>
+            <button class="test-button" onclick="stopMusic()">Stop Music</button>
+            <button class="test-button" onclick="testMusicTransition()">Test Music Transition</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>Performance Test</h3>
+            <button class="test-button" onclick="testAudioPerformance()">Test Performance</button>
+            <button class="test-button" onclick="testRapidSounds()">Test Rapid Sounds</button>
+        </div>
+        
+        <div class="test-section">
+            <h3>Test Log</h3>
+            <div id="test-log" class="log"></div>
+            <button class="test-button" onclick="clearLog()">Clear Log</button>
+        </div>
+    </div>
+
+    <script>
+        // Test functions
+        function log(message) {
+            const logElement = document.getElementById('test-log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.innerHTML += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+
+        function clearLog() {
+            document.getElementById('test-log').innerHTML = '';
+        }
+
+        function checkAudioSystem() {
+            log('🔍 Checking audio system...');
+            
+            if (typeof window.game !== 'undefined' && window.game.audioManager) {
+                const audioManager = window.game.audioManager;
+                const status = document.getElementById('audio-status');
+                
+                if (audioManager.isAvailable()) {
+                    status.className = 'status success';
+                    status.textContent = '✅ Audio system is available and working';
+                    log('✅ Audio system is available and working');
+                } else {
+                    status.className = 'status error';
+                    status.textContent = '❌ Audio system is not available';
+                    log('❌ Audio system is not available');
+                }
+            } else {
+                const status = document.getElementById('audio-status');
+                status.className = 'status error';
+                status.textContent = '❌ Game not loaded yet';
+                log('❌ Game not loaded yet - please wait for game to load');
+            }
+        }
+
+        function testSound(soundName) {
+            log(`🔊 Testing sound: ${soundName}`);
+            
+            if (window.game?.audioManager) {
+                window.game.audioManager.playSound(soundName);
+                log(`✅ Played ${soundName}`);
+            } else {
+                log('❌ AudioManager not available');
+            }
+        }
+
+        function setMasterVolume(value) {
+            const percentage = Math.round(value * 100);
+            document.getElementById('master-volume-value').textContent = percentage + '%';
+            
+            if (window.game?.audioManager) {
+                window.game.audioManager.setMasterVolume(parseFloat(value));
+                log(`🔊 Master volume set to ${percentage}%`);
+            }
+        }
+
+        function setMusicVolume(value) {
+            const percentage = Math.round(value * 100);
+            document.getElementById('music-volume-value').textContent = percentage + '%';
+            
+            if (window.game?.audioManager) {
+                window.game.audioManager.setMusicVolume(parseFloat(value));
+                log(`🎵 Music volume set to ${percentage}%`);
+            }
+        }
+
+        function setSFXVolume(value) {
+            const percentage = Math.round(value * 100);
+            document.getElementById('sfx-volume-value').textContent = percentage + '%';
+            
+            if (window.game?.audioManager) {
+                window.game.audioManager.setSFXVolume(parseFloat(value));
+                log(`🔊 SFX volume set to ${percentage}%`);
+            }
+        }
+
+        function toggleMute() {
+            if (window.game?.audioManager) {
+                const config = window.game.audioManager.getConfig();
+                const newEnabled = !config.enabled;
+                window.game.audioManager.setEnabled(newEnabled);
+                log(newEnabled ? '🔊 Audio unmuted' : '🔇 Audio muted');
+            }
+        }
+
+        function playMenuMusic() {
+            if (window.game?.audioManager) {
+                window.game.audioManager.playMusic('Engage_II.mp3', true, 0.6);
+                log('🎵 Playing menu music');
+            }
+        }
+
+        function playGameplayMusic() {
+            if (window.game?.audioManager) {
+                window.game.audioManager.playMusic('Dead_Space.mp3', true, 0.4);
+                log('🎵 Playing gameplay music');
+            }
+        }
+
+        function stopMusic() {
+            if (window.game?.audioManager) {
+                window.game.audioManager.stopMusic();
+                log('🔇 Music stopped');
+            }
+        }
+
+        function testMusicTransition() {
+            if (window.game?.audioManager) {
+                window.game.audioManager.fadeToMusic('Dead_Space.mp3', 2.0);
+                log('🎵 Testing music transition (fade to gameplay music)');
+            }
+        }
+
+        function testAudioPerformance() {
+            log('⚡ Testing audio performance...');
+            const startTime = performance.now();
+            
+            if (window.game?.audioManager) {
+                // Play multiple sounds rapidly
+                for (let i = 0; i < 10; i++) {
+                    setTimeout(() => {
+                        window.game.audioManager.playSound('ui_click');
+                    }, i * 100);
+                }
+                
+                const endTime = performance.now();
+                const duration = endTime - startTime;
+                log(`✅ Performance test completed in ${duration.toFixed(2)}ms`);
+            }
+        }
+
+        function testRapidSounds() {
+            log('🚀 Testing rapid sound playback...');
+            
+            if (window.game?.audioManager) {
+                const sounds = ['ui_click', 'ui_hover', 'ui_slide', 'bounce', 'target'];
+                
+                for (let i = 0; i < 20; i++) {
+                    setTimeout(() => {
+                        const sound = sounds[i % sounds.length];
+                        window.game.audioManager.playSound(sound);
+                    }, i * 50);
+                }
+                
+                log('✅ Rapid sound test completed');
+            }
+        }
+
+        // Auto-check audio system when page loads
+        window.addEventListener('load', () => {
+            setTimeout(checkAudioSystem, 2000); // Wait for game to load
+        });
+
+        // Update volume display values
+        document.getElementById('master-volume').addEventListener('input', function() {
+            document.getElementById('master-volume-value').textContent = Math.round(this.value * 100) + '%';
+        });
+
+        document.getElementById('music-volume').addEventListener('input', function() {
+            document.getElementById('music-volume-value').textContent = Math.round(this.value * 100) + '%';
+        });
+
+        document.getElementById('sfx-volume').addEventListener('input', function() {
+            document.getElementById('sfx-volume-value').textContent = Math.round(this.value * 100) + '%';
+        });
+    </script>
+</body>
+</html> 

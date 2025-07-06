@@ -1,45 +1,155 @@
+// Circuit Breaker - Math Utilities
+// Common mathematical functions for game calculations
+
 export interface Vector2 {
-  x: number
-  y: number
+  x: number;
+  y: number;
 }
 
 export class MathUtils {
   /**
-   * Calculate distance between two points
-   */
-  static distance(a: Vector2, b: Vector2): number {
-    const dx = b.x - a.x
-    const dy = b.y - a.y
-    return Math.sqrt(dx * dx + dy * dy)
-  }
-
-  /**
-   * Normalize a vector
-   */
-  static normalize(vector: Vector2): Vector2 {
-    const length = Math.sqrt(vector.x * vector.x + vector.y * vector.y)
-    if (length === 0) return { x: 0, y: 0 }
-    return { x: vector.x / length, y: vector.y / length }
-  }
-
-  /**
-   * Dot product of two vectors
-   */
-  static dot(a: Vector2, b: Vector2): number {
-    return a.x * b.x + a.y * b.y
-  }
-
-  /**
    * Clamp a value between min and max
    */
-  static clamp(value: number, min: number, max: number): number {
-    return Math.max(min, Math.min(max, value))
+  public static clamp(value: number, min: number, max: number): number {
+    return Math.min(Math.max(value, min), max);
   }
 
   /**
    * Linear interpolation between two values
    */
-  static lerp(a: number, b: number, t: number): number {
-    return a + (b - a) * t
+  public static lerp(start: number, end: number, factor: number): number {
+    return start + (end - start) * factor;
   }
-} 
+
+  /**
+   * Convert degrees to radians
+   */
+  public static toRadians(degrees: number): number {
+    return degrees * (Math.PI / 180);
+  }
+
+  /**
+   * Convert radians to degrees
+   */
+  public static toDegrees(radians: number): number {
+    return radians * (180 / Math.PI);
+  }
+
+  /**
+   * Calculate distance between two points (coordinate version)
+   */
+  public static distance(
+    x1: number,
+    y1: number,
+    x2: number,
+    y2: number,
+  ): number {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /**
+   * Calculate distance between two Vector2 points
+   */
+  public static distanceVec(a: Vector2, b: Vector2): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
+  /**
+   * Calculate angle between two points
+   */
+  public static angle(x1: number, y1: number, x2: number, y2: number): number {
+    return Math.atan2(y2 - y1, x2 - x1);
+  }
+
+  /**
+   * Normalize a vector
+   */
+  public static normalize(vector: Vector2): Vector2 {
+    const length = Math.sqrt(vector.x * vector.x + vector.y * vector.y);
+    if (length === 0) return { x: 0, y: 0 };
+    return { x: vector.x / length, y: vector.y / length };
+  }
+
+  /**
+   * Dot product of two vectors
+   */
+  public static dot(a: Vector2, b: Vector2): number {
+    return a.x * b.x + a.y * b.y;
+  }
+
+  /**
+   * Check if two circles are colliding
+   */
+  public static circleCollision(
+    x1: number,
+    y1: number,
+    r1: number,
+    x2: number,
+    y2: number,
+    r2: number,
+  ): boolean {
+    const distance = this.distance(x1, y1, x2, y2);
+    return distance < r1 + r2;
+  }
+
+  /**
+   * Check if a point is inside a circle
+   */
+  public static pointInCircle(
+    px: number,
+    py: number,
+    cx: number,
+    cy: number,
+    radius: number,
+  ): boolean {
+    const distance = this.distance(px, py, cx, cy);
+    return distance <= radius;
+  }
+
+  /**
+   * Check if a point is inside a rectangle
+   */
+  public static pointInRect(
+    px: number,
+    py: number,
+    rx: number,
+    ry: number,
+    rw: number,
+    rh: number,
+  ): boolean {
+    return px >= rx && px <= rx + rw && py >= ry && py <= ry + rh;
+  }
+
+  /**
+   * Generate a random number between min and max
+   */
+  public static random(min: number, max: number): number {
+    return Math.random() * (max - min) + min;
+  }
+
+  /**
+   * Generate a random integer between min and max (inclusive)
+   */
+  public static randomInt(min: number, max: number): number {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+  }
+
+  /**
+   * Easing functions for smooth animations
+   */
+  public static easeInOut(t: number): number {
+    return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  }
+
+  public static easeIn(t: number): number {
+    return t * t;
+  }
+
+  public static easeOut(t: number): number {
+    return t * (2 - t);
+  }
+}
