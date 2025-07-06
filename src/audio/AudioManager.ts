@@ -449,13 +449,28 @@ export class AudioManager {
   }
 
   /**
+   * Get the correct base URL for assets
+   */
+  private getBaseUrl(): string {
+    // For GitHub Pages deployment, use the base URL from the current location
+    const baseUrl = window.location.pathname.includes('/circuit-breaker/') 
+      ? '/circuit-breaker/' 
+      : '/'
+    return baseUrl
+  }
+
+  /**
    * Load an MP3 file from the public/assets/audio folder
    */
   public async loadMusic(filename: string): Promise<AudioBuffer | null> {
     if (!this.audioContext) return null
 
     try {
-      const response = await fetch(`./assets/audio/${filename}`)
+      const baseUrl = this.getBaseUrl()
+      const audioUrl = `${baseUrl}assets/audio/${filename}`
+      console.log(`🎵 Attempting to load audio from: ${audioUrl}`)
+      
+      const response = await fetch(audioUrl)
       if (!response.ok) {
         throw new Error(`Failed to load ${filename}: ${response.status}`)
       }
