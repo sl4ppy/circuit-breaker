@@ -467,23 +467,61 @@ export class Renderer {
     // Use sprite atlas if loaded, otherwise fallback to procedural rendering
     if (this.spritesLoaded && spriteAtlas.isAtlasLoaded()) {
       // Draw sprite-based ball from atlas
-      const spriteSize = radius * 2 * scale
+      const targetSize = radius * 2 * scale
+      const spriteFrame = spriteAtlas.getFrame('ball_normal')
       
-      // Draw shadow behind sprite
-      this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
-      this.ctx.beginPath()
-      this.ctx.arc(x + radius * scale * 0.1, y + radius * scale * 0.1, radius * scale, 0, Math.PI * 2)
-      this.ctx.fill()
-      
-      // Draw the ball sprite from atlas
-      const ballSpriteName = 'ball_normal'
-      spriteAtlas.drawSprite(
-        this.ctx,
-        ballSpriteName,
-        x - spriteSize / 2,  // Center horizontally
-        y - spriteSize / 2,  // Center vertically
-        spriteSize / 16      // Scale factor (assuming 16x16 sprite, adjust as needed)
-      )
+      if (spriteFrame) {
+        // Calculate scale to fit the ball size (64x64 sprite to ball diameter)
+        const spriteScale = targetSize / spriteFrame.w
+        
+        // Draw shadow behind sprite
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+        this.ctx.beginPath()
+        this.ctx.arc(x + radius * scale * 0.1, y + radius * scale * 0.1, radius * scale, 0, Math.PI * 2)
+        this.ctx.fill()
+        
+        // Draw the ball sprite from atlas, centered on ball position
+        spriteAtlas.drawSprite(
+          this.ctx,
+          'ball_normal',
+          x - targetSize / 2,  // Center horizontally
+          y - targetSize / 2,  // Center vertically
+          spriteScale          // Scale factor to match ball size
+        )
+              } else {
+        // Fallback if sprite not found - render procedurally inline
+        const scaledRadius = radius * scale
+
+        // Create main ball gradient (chrome base)
+        const mainGradient = this.ctx.createRadialGradient(
+          x - scaledRadius * 0.3, y - scaledRadius * 0.3, 0,
+          x, y, scaledRadius
+        )
+        mainGradient.addColorStop(0, '#ffffff')      // Bright highlight
+        mainGradient.addColorStop(0.1, '#e6e6e6')    // Light chrome
+        mainGradient.addColorStop(0.3, '#cccccc')    // Medium chrome
+        mainGradient.addColorStop(0.6, '#999999')    // Dark chrome
+        mainGradient.addColorStop(0.8, '#666666')    // Darker chrome
+        mainGradient.addColorStop(1, '#333333')      // Shadow edge
+
+        // Draw main ball shadow (behind ball)
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+        this.ctx.beginPath()
+        this.ctx.arc(x + scaledRadius * 0.1, y + scaledRadius * 0.1, scaledRadius, 0, Math.PI * 2)
+        this.ctx.fill()
+
+        // Draw main chrome ball
+        this.ctx.fillStyle = mainGradient
+        this.ctx.beginPath()
+        this.ctx.arc(x, y, scaledRadius, 0, Math.PI * 2)
+        this.ctx.fill()
+
+        // Add bright highlight
+        this.ctx.fillStyle = 'rgba(255, 255, 255, 1)'
+        this.ctx.beginPath()
+        this.ctx.arc(x - scaledRadius * 0.35, y - scaledRadius * 0.35, scaledRadius * 0.08, 0, Math.PI * 2)
+        this.ctx.fill()
+      }
     } else {
       // Fallback to procedural chrome rendering
       const scaledRadius = radius * scale
