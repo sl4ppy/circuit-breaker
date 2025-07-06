@@ -1,0 +1,39 @@
+{
+  "frames": {
+    "ball_normal":       { "x": 0,   "y": 0,   "w": 16,  "h": 16 },
+    "ball_powerup":      { "x": 16,  "y": 0,   "w": 16,  "h": 16 },
+    "flipper_left_down": { "x": 32,  "y": 0,   "w": 32,  "h": 8  },
+    "flipper_right_down":{ "x": 64,  "y": 0,   "w": 32,  "h": 8  },
+    "drop_target":       { "x": 96,  "y": 0,   "w": 16,  "h": 32 },
+    "standup_target":    { "x": 112, "y": 0,   "w": 16,  "h": 32 },
+    "round_bumper_idle": { "x": 0,   "y": 16,  "w": 32,  "h": 32 },
+    "round_bumper_active":{ "x": 32, "y": 16,  "w": 32,  "h": 32 },
+    "slingshot_idle":    { "x": 64,  "y": 16,  "w": 16,  "h": 32 },
+    "slingshot_active":  { "x": 80,  "y": 16,  "w": 16,  "h": 32 },
+    "ramp_straight":     { "x": 0,   "y": 48,  "w": 64,  "h": 16 },
+    "ramp_corner_left":  { "x": 64,  "y": 48,  "w": 32,  "h": 32 },
+    "ramp_corner_right": { "x": 96,  "y": 48,  "w": 32,  "h": 32 },
+    "spinner_1":         { "x": 0,   "y": 80,  "w": 16,  "h": 16 },
+    "spinner_2":         { "x": 16,  "y": 80, "w": 16,  "h": 16 },
+    "spinner_3":         { "x": 32,  "y": 80, "w": 16,  "h": 16 },
+    "spinner_4":         { "x": 48,  "y": 80, "w": 16,  "h": 16 },
+    "guide_rail":        { "x": 0,   "y": 96,  "w": 32,  "h": 8  },
+    "playfield_tile":    { "x": 32,  "y": 96,  "w": 64,  "h": 64 },
+    "billboard_1":       { "x": 0,   "y": 160, "w": 64, "h": 32 },
+    "billboard_2":       { "x": 64,  "y": 160, "w": 64, "h": 32 },
+    "score_digits":      { "x": 0,   "y": 192, "w": 160, "h": 24 },
+    "ball_icon":         { "x": 0,   "y": 216, "w": 16, "h": 16 },
+    "magnet_node_1":     { "x": 16,  "y": 216, "w": 32, "h": 32 },
+    "magnet_node_2":     { "x": 48,  "y": 216, "w": 32, "h": 32 },
+    "holographic_bumper":{ "x": 80,  "y": 216, "w": 32, "h": 32 },
+    "powerup_capsule_1": { "x": 112, "y": 216, "w": 16, "h": 16 },
+    "powerup_capsule_2": { "x": 128, "y": 216, "w": 16, "h": 16 },
+    "powerup_capsule_3": { "x": 144, "y": 216, "w": 16, "h": 16 },
+    "powerup_capsule_4": { "x": 160, "y": 216, "w": 16, "h": 16 }
+  },
+  "meta": {
+    "image": "sprite_atlas.png",
+    "size": { "w": 256, "h": 256 },
+    "scale": 1
+  }
+}
