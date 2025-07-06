@@ -8,6 +8,9 @@
 
 🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/circuit-breaker/)** 🎮
 
+![Circuit Breaker Screenshot](docs/images/screenshot_01.png)
+*Circuit Breaker in action - Experience the neon cyberpunk pinball gameplay with professional loading screens, attract mode, and immersive audio-visual effects.*
+
 ## Latest Updates - Version 0.6.0
 
 ### 🎵 AUDIO EXPERIENCE
