@@ -57,7 +57,7 @@ function showErrorMessage(message: string): void {
   const gameContainer = document.getElementById('game-container')
   if (gameContainer) {
     gameContainer.innerHTML = `
-      <div style="text-align: center; color: #ff0066;">
+      <div style="text-align: center; color: #b600f9;">
         <h1>Circuit Breaker</h1>
         <p>Error: ${message}</p>
         <p>Please refresh the page to try again.</p>

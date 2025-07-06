@@ -5,6 +5,7 @@ export enum GameStateType {
   MENU = 'menu',
   PLAYING = 'playing',
   PAUSED = 'paused',
+  CONFIRM_MENU = 'confirm_menu', // Confirmation dialog for returning to menu
   LEVEL_COMPLETE = 'level_complete',
   GAME_OVER = 'game_over',
   LOADING = 'loading'
@@ -90,6 +91,13 @@ export class GameState {
    */
   public isGameOver(): boolean {
     return this.currentState === GameStateType.GAME_OVER
+  }
+
+  /**
+   * Check if confirmation dialog is showing
+   */
+  public isConfirmingMenu(): boolean {
+    return this.currentState === GameStateType.CONFIRM_MENU
   }
 
   /**

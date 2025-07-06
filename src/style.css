@@ -2,49 +2,69 @@
 
 /* Custom Cyberpunk Fonts */
 @font-face {
-  font-family: 'CyberFont';
-  src: url('/assets/fonts/cyber-font.woff2') format('woff2'),
-       url('/assets/fonts/cyber-font.woff') format('woff'),
-       url('/assets/fonts/cyber-font.ttf') format('truetype');
+  font-family: 'Cyberpunks';
+  src: url('/assets/fonts/Cyberpunks.otf') format('opentype'),
+       url('/assets/fonts/Cyberpunks.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap; /* Ensures text is visible during font load */
 }
 
 @font-face {
-  font-family: 'CyberFont';
-  src: url('/assets/fonts/cyber-font-bold.woff2') format('woff2'),
-       url('/assets/fonts/cyber-font-bold.woff') format('woff'),
-       url('/assets/fonts/cyber-font-bold.ttf') format('truetype');
+  font-family: 'Cyberpunks';
+  src: url('/assets/fonts/Cyberpunks Italic.otf') format('opentype'),
+       url('/assets/fonts/Cyberpunks Italic.ttf') format('truetype');
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Interceptor';
+  src: url('/assets/fonts/Interceptor.otf') format('opentype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Interceptor';
+  src: url('/assets/fonts/Interceptor Italic.otf') format('opentype');
+  font-weight: normal;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Interceptor';
+  src: url('/assets/fonts/Interceptor Bold.otf') format('opentype');
   font-weight: bold;
   font-style: normal;
   font-display: swap;
 }
 
 @font-face {
-  font-family: 'NeonDisplay';
-  src: url('/assets/fonts/neon-display.woff2') format('woff2'),
-       url('/assets/fonts/neon-display.woff') format('woff'),
-       url('/assets/fonts/neon-display.ttf') format('truetype');
-  font-weight: normal;
-  font-style: normal;
+  font-family: 'Interceptor';
+  src: url('/assets/fonts/Interceptor Bold Italic.otf') format('opentype');
+  font-weight: bold;
+  font-style: italic;
   font-display: swap;
 }
 
 :root {
-  --neon-cyan: #00ffff;
-  --neon-pink: #ff00ff;
-  --neon-green: #00ff00;
+  --neon-cyan: #00f0ff;
+  --neon-pink: #b600f9;
+  --neon-green: #00ff99;
   --neon-orange: #ff6600;
-  --neon-purple: #6600ff;
+  --neon-purple: #b600f9;
   --dark-gray: #1a1a1a;
   --charcoal: #2a2a2a;
   --deep-black: #000000;
   
   /* Font stacks with fallbacks */
-  --font-primary: 'CyberFont', 'Courier New', 'Monaco', 'Consolas', monospace;
-  --font-display: 'NeonDisplay', 'CyberFont', 'Courier New', monospace;
-  --font-mono: 'CyberFont', 'Courier New', 'Monaco', 'Consolas', monospace;
+  --font-primary: 'Interceptor', 'Courier New', 'Monaco', 'Consolas', monospace;
+  --font-display: 'Cyberpunks', 'Interceptor', 'Courier New', monospace;
+  --font-mono: 'Interceptor', 'Courier New', 'Monaco', 'Consolas', monospace;
 }
 
 * {

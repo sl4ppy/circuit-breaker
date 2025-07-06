@@ -142,7 +142,7 @@ export class Game {
     }
 
     console.log('▶️ Starting Circuit Breaker...')
-    this.gameState.setState(GameStateType.PLAYING)
+    this.gameState.setState(GameStateType.MENU)
     this.gameLoop.start(this.gameState, this.renderer, this.physicsEngine, this)
   }
 
@@ -188,9 +188,33 @@ export class Game {
         this.audioManager.playSound('ui_click')
       }
     }
+
+    // Handle confirmation dialog input
+    if (this.gameState.isConfirmingMenu()) {
+      // Y key or Enter - confirm return to menu
+      if (this.inputManager.isKeyJustPressed('KeyY') || this.inputManager.isKeyJustPressed('Enter')) {
+        console.log('✅ Confirmed - returning to menu')
+        this.gameState.reset()
+        this.audioManager.playSound('ui_click')
+      }
+      // N key or Escape - cancel and return to game
+      else if (this.inputManager.isKeyJustPressed('KeyN') || this.inputManager.isKeyJustPressed('Escape')) {
+        console.log('❌ Cancelled - returning to game')
+        this.gameState.setState(GameStateType.PLAYING)
+        this.audioManager.playSound('ui_click')
+      }
+    }
     
     // Only process gameplay logic when actually playing
     if (this.gameState.isPlaying()) {
+      // Handle escape key - show confirmation dialog
+      if (this.inputManager.isActionJustPressed('pause')) {
+        console.log('⏸️ Escape pressed - showing confirmation dialog')
+        this.gameState.setState(GameStateType.CONFIRM_MENU)
+        this.audioManager.playSound('ui_click')
+        return // Don't process other gameplay input
+      }
+
       // Update hole animation if active
       if (this.isAnimatingHoleFall) {
         this.updateHoleAnimation(deltaTime)
@@ -304,7 +328,7 @@ export class Game {
       // Draw essential UI (always visible)
       const ctx = this.renderer.getContext()
       if (ctx) {
-        ctx.fillStyle = '#00ffff'
+        ctx.fillStyle = '#00f0ff' // Electric Blue
         fontManager.setFont(ctx, 'primary', 12)
         ctx.textAlign = 'left'
         ctx.fillText(`Level: ${levelData.id} - ${levelData.name}`, 10, 20)
@@ -333,7 +357,7 @@ export class Game {
     if (this.gameState.isDebugMode()) {
       const ctx = this.renderer.getContext()
       if (ctx) {
-        ctx.fillStyle = '#00ffff'
+        ctx.fillStyle = '#00f0ff' // Electric Blue
         fontManager.setFont(ctx, 'primary', 10)
         ctx.textAlign = 'center'
         ctx.fillText('SPACE: Start | Left: A(up)/Z(down) | Right: ↑(up)/↓(down)', 180, 580)

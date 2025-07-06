@@ -25,8 +25,8 @@ export class TiltingBar {
   public friction: number
   
   // Visual properties
-  public color: string = '#00ffff' // Neon cyan
-  public glowColor: string = '#0088ff'
+  public color: string = '#00f0ff' // Electric Blue
+  public glowColor: string = '#b600f9' // Neon Purple
   public thickness: number = 12 // Increased thickness for better collision
 
   constructor(config: TiltingBarConfig) {

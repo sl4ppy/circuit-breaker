@@ -70,6 +70,11 @@ export class Level {
     for (const hole of this.levelData.holes) {
       if (!hole.isActive) continue
       
+      // Skip completed goal holes - balls can no longer fall into them
+      if (hole.isGoal && this.completedGoals.has(hole.id)) {
+        continue
+      }
+      
       const dx = ballPosition.x - hole.position.x
       const dy = ballPosition.y - hole.position.y
       const distance = Math.sqrt(dx * dx + dy * dy)
@@ -88,6 +93,11 @@ export class Level {
    */
   public checkGoalReached(ballPosition: Vector2, ballRadius: number): boolean {
     for (const goalHole of this.levelData.goalHoles) {
+      // Skip goal holes that are already completed
+      if (this.completedGoals.has(goalHole.id)) {
+        continue
+      }
+      
       const dx = ballPosition.x - goalHole.position.x
       const dy = ballPosition.y - goalHole.position.y
       const distance = Math.sqrt(dx * dx + dy * dy)

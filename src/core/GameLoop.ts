@@ -4,6 +4,7 @@
 import { GameState, GameStateType } from './GameState'
 import { Renderer } from '../rendering/Renderer'
 import { PhysicsEngine } from '../physics/PhysicsEngine'
+import { Debug } from '../utils/Debug'
 import { fontManager } from '../utils/FontManager'
 
 export class GameLoop {
@@ -102,6 +103,8 @@ export class GameLoop {
       this.renderMenu(gameState)
     } else if (gameState.isState(GameStateType.PAUSED)) {
       this.renderPaused()
+    } else if (gameState.isState(GameStateType.CONFIRM_MENU)) {
+      this.renderConfirmDialog(gameState)
     } else if (gameState.isState(GameStateType.GAME_OVER)) {
       this.renderGameOver(gameState)
     }
@@ -117,8 +120,7 @@ export class GameLoop {
     if (!ctx) return
 
     // Draw background
-    ctx.fillStyle = '#1a1a1a'
-    ctx.fillRect(0, 0, 360, 640)
+    this.renderer.drawBackground()
 
     // Draw all physics objects except balls first
     if (this.physicsEngine) {
@@ -293,10 +295,9 @@ export class GameLoop {
     if (!ctx) return
 
     // Draw background
-    ctx.fillStyle = '#1a1a1a'
-    ctx.fillRect(0, 0, 360, 640)
+    this.renderer.drawBackground()
 
-    // Draw cyberpunk grid background
+    // Draw subtle grid pattern
     ctx.strokeStyle = '#003366'
     ctx.lineWidth = 1
     ctx.globalAlpha = 0.3
@@ -309,7 +310,7 @@ export class GameLoop {
       ctx.stroke()
     }
     
-    // Horizontal lines
+    // Horizontal lines  
     for (let y = 0; y <= 640; y += 20) {
       ctx.beginPath()
       ctx.moveTo(0, y)
@@ -321,17 +322,17 @@ export class GameLoop {
 
     // Draw main title with neon glow
     ctx.save()
-    ctx.shadowColor = '#00ffff'
+    ctx.shadowColor = '#00f0ff' // Electric Blue
     ctx.shadowBlur = 20
-    ctx.fillStyle = '#00ffff'
-    fontManager.setFont(ctx, 'display', 32, 'bold')
+    ctx.fillStyle = '#b600f9' // Neon Purple
+    fontManager.setFont(ctx, 'display', 72, 'bold')
     ctx.textAlign = 'center'
-    ctx.fillText('CIRCUIT', 180, 200)
-    ctx.fillText('BREAKER', 180, 240)
+    ctx.fillText('CIRCUIT', 180, 120)
+    ctx.fillText('BREAKER', 180, 180)
     ctx.restore()
 
     // Draw subtitle
-    ctx.fillStyle = '#ff0066'
+    ctx.fillStyle = '#b600f9' // Neon Purple
     fontManager.setFont(ctx, 'primary', 16)
     ctx.textAlign = 'center'
     ctx.fillText('NEON CYBERPUNK PINBALL', 180, 280)
@@ -347,9 +348,9 @@ export class GameLoop {
     const pulseAlpha = 0.5 + 0.5 * Math.sin(time / 500)
     ctx.save()
     ctx.globalAlpha = pulseAlpha
-    ctx.shadowColor = '#00ff00'
+    ctx.shadowColor = '#00ff99' // Acid Green
     ctx.shadowBlur = 10
-    ctx.fillStyle = '#00ff00'
+    ctx.fillStyle = '#00ff99' // Acid Green
     fontManager.setFont(ctx, 'primary', 14, 'bold')
     ctx.fillText('CLICK OR PRESS SPACE TO START', 180, 420)
     ctx.restore()
@@ -365,7 +366,7 @@ export class GameLoop {
 
     // Draw debug mode status
     const debugStatus = gameState.isDebugMode() ? 'ON' : 'OFF'
-    const debugColor = gameState.isDebugMode() ? '#00ff00' : '#ff0066'
+    const debugColor = gameState.isDebugMode() ? '#00ff99' : '#b600f9' // Acid Green or Neon Purple
     ctx.fillStyle = debugColor
     fontManager.setFont(ctx, 'primary', 12)
     ctx.fillText(`DEBUG MODE: ${debugStatus}`, 180, 460)
@@ -389,10 +390,79 @@ export class GameLoop {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
     ctx.fillRect(0, 0, 360, 640)
 
-    ctx.fillStyle = '#00ffff'
+    ctx.fillStyle = '#00f0ff' // Electric Blue
     ctx.font = '20px Courier New'
     ctx.textAlign = 'center'
     ctx.fillText('PAUSED', 180, 320)
+  }
+
+  /**
+   * Render confirmation dialog
+   */
+  private renderConfirmDialog(gameState: GameState): void {
+    if (!this.renderer) return
+
+    const ctx = this.renderer.getContext()
+    if (!ctx) return
+
+    // First render the current gameplay in the background (dimmed)
+    this.renderGameplay(gameState)
+
+    // Draw semi-transparent overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.8)'
+    ctx.fillRect(0, 0, 360, 640)
+
+    // Draw dialog box background
+    const dialogWidth = 280
+    const dialogHeight = 160
+    const dialogX = (360 - dialogWidth) / 2
+    const dialogY = (640 - dialogHeight) / 2
+
+    // Draw dialog background with neon border
+    ctx.fillStyle = '#1a1a1a'
+    ctx.fillRect(dialogX, dialogY, dialogWidth, dialogHeight)
+    
+    ctx.strokeStyle = '#b600f9' // Neon Purple border
+    ctx.lineWidth = 3
+    ctx.shadowColor = '#b600f9'
+    ctx.shadowBlur = 10
+    ctx.strokeRect(dialogX, dialogY, dialogWidth, dialogHeight)
+    ctx.shadowBlur = 0
+
+    // Draw dialog title
+    ctx.fillStyle = '#b600f9' // Neon Purple
+    fontManager.setFont(ctx, 'primary', 18, 'bold')
+    ctx.textAlign = 'center'
+    ctx.fillText('RETURN TO MENU?', 180, dialogY + 40)
+
+    // Draw confirmation message
+    ctx.fillStyle = '#ffffff'
+    fontManager.setFont(ctx, 'primary', 12)
+    ctx.fillText('Your progress will be lost.', 180, dialogY + 70)
+    ctx.fillText('Are you sure?', 180, dialogY + 90)
+
+    // Draw buttons with glow effects
+    const buttonY = dialogY + 120
+    
+    // YES button (Electric Blue)
+    ctx.fillStyle = '#00f0ff'
+    ctx.shadowColor = '#00f0ff'
+    ctx.shadowBlur = 8
+    fontManager.setFont(ctx, 'primary', 14, 'bold')
+    ctx.fillText('[Y] YES', 130, buttonY)
+    
+    // NO button (Acid Green)
+    ctx.fillStyle = '#00ff99'
+    ctx.shadowColor = '#00ff99'
+    ctx.shadowBlur = 8
+    ctx.fillText('[N] NO', 230, buttonY)
+    
+    ctx.shadowBlur = 0
+
+    // Draw instruction text
+    ctx.fillStyle = '#888888'
+    fontManager.setFont(ctx, 'primary', 10)
+    ctx.fillText('Press Y to confirm, N or ESC to cancel', 180, dialogY + 145)
   }
 
   /**
@@ -405,11 +475,10 @@ export class GameLoop {
     if (!ctx) return
 
     // Draw dark background
-    ctx.fillStyle = '#0a0a0a'
-    ctx.fillRect(0, 0, 360, 640)
+    this.renderer.drawBackground()
 
     // Draw red alert grid
-    ctx.strokeStyle = '#660000'
+    ctx.strokeStyle = '#330000'
     ctx.lineWidth = 1
     ctx.globalAlpha = 0.3
     
@@ -433,9 +502,9 @@ export class GameLoop {
 
     // Draw GAME OVER with red glow
     ctx.save()
-    ctx.shadowColor = '#ff0000'
+    ctx.shadowColor = '#b600f9' // Neon Purple
     ctx.shadowBlur = 25
-    ctx.fillStyle = '#ff0000'
+    ctx.fillStyle = '#b600f9' // Neon Purple
     fontManager.setFont(ctx, 'display', 28, 'bold')
     ctx.textAlign = 'center'
     ctx.fillText('GAME OVER', 180, 200)
@@ -459,9 +528,9 @@ export class GameLoop {
     const pulseAlpha = 0.5 + 0.5 * Math.sin(time / 400)
     ctx.save()
     ctx.globalAlpha = pulseAlpha
-    ctx.shadowColor = '#00ff00'
+    ctx.shadowColor = '#00ff99' // Acid Green
     ctx.shadowBlur = 10
-    ctx.fillStyle = '#00ff00'
+    ctx.fillStyle = '#00ff99' // Acid Green
     fontManager.setFont(ctx, 'primary', 12, 'bold')
     ctx.fillText('CLICK OR PRESS SPACE TO RETURN TO MENU', 180, 400)
     ctx.restore()

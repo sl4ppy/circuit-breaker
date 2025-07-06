@@ -7,9 +7,9 @@ export class FontManager {
   
   // Font definitions with fallbacks
   private fonts = {
-    primary: 'CyberFont, "Courier New", Monaco, Consolas, monospace',
-    display: 'NeonDisplay, CyberFont, "Courier New", monospace',
-    mono: 'CyberFont, "Courier New", Monaco, Consolas, monospace'
+    primary: 'Interceptor, "Courier New", Monaco, Consolas, monospace',
+    display: 'Cyberpunks, Interceptor, "Courier New", monospace',
+    mono: 'Interceptor, "Courier New", Monaco, Consolas, monospace'
   }
   
   private constructor() {
@@ -30,19 +30,35 @@ export class FontManager {
     try {
       // Check if fonts are available using CSS Font Loading API
       if ('fonts' in document) {
-        const fontFace1 = new FontFace('CyberFont', 'url(/assets/fonts/cyber-font.woff2)')
-        const fontFace2 = new FontFace('NeonDisplay', 'url(/assets/fonts/neon-display.woff2)')
+        // Load Cyberpunks font family
+        const cyberpunksRegular = new FontFace('Cyberpunks', 'url("/assets/fonts/Cyberpunks.otf")')
+        const cyberpunksItalic = new FontFace('Cyberpunks', 'url("/assets/fonts/Cyberpunks Italic.otf")', { style: 'italic' })
+        
+        // Load Interceptor font family
+        const interceptorRegular = new FontFace('Interceptor', 'url("/assets/fonts/Interceptor.otf")')
+        const interceptorItalic = new FontFace('Interceptor', 'url("/assets/fonts/Interceptor Italic.otf")', { style: 'italic' })
+        const interceptorBold = new FontFace('Interceptor', 'url("/assets/fonts/Interceptor Bold.otf")', { weight: 'bold' })
+        const interceptorBoldItalic = new FontFace('Interceptor', 'url("/assets/fonts/Interceptor Bold Italic.otf")', { weight: 'bold', style: 'italic' })
         
         await Promise.all([
-          fontFace1.load(),
-          fontFace2.load()
+          cyberpunksRegular.load(),
+          cyberpunksItalic.load(),
+          interceptorRegular.load(),
+          interceptorItalic.load(),
+          interceptorBold.load(),
+          interceptorBoldItalic.load()
         ])
         
-        document.fonts.add(fontFace1)
-        document.fonts.add(fontFace2)
+        // Add fonts to document
+        document.fonts.add(cyberpunksRegular)
+        document.fonts.add(cyberpunksItalic)
+        document.fonts.add(interceptorRegular)
+        document.fonts.add(interceptorItalic)
+        document.fonts.add(interceptorBold)
+        document.fonts.add(interceptorBoldItalic)
         
         this.fontsLoaded = true
-        console.log('🎨 Custom fonts loaded successfully')
+        console.log('🎨 Custom cyberpunk fonts loaded successfully')
       }
     } catch (error) {
       console.log('⚠️ Custom fonts failed to load, using fallbacks:', error)
@@ -79,6 +95,21 @@ export class FontManager {
     if (!this.fontsLoaded) {
       await this.loadFonts()
     }
+  }
+  
+  /**
+   * Get available font types
+   */
+  public getFontTypes(): string[] {
+    return Object.keys(this.fonts)
+  }
+  
+  /**
+   * Check if specific font family is available
+   */
+  public isFontAvailable(fontFamily: string): boolean {
+    if (!('fonts' in document)) return false
+    return document.fonts.check(`12px ${fontFamily}`)
   }
 }
 

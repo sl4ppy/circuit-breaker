@@ -12,6 +12,7 @@ export class Renderer {
   
   // Sprite images
   private ballSprite: HTMLImageElement | null = null
+  private backgroundSprite: HTMLImageElement | null = null
   private spritesLoaded: boolean = false
 
   constructor() {
@@ -24,18 +25,30 @@ export class Renderer {
    */
   private async loadSprites(): Promise<void> {
     try {
+      // Load ball sprite
       this.ballSprite = new Image()
       this.ballSprite.src = '/assets/sprites/ball_01.png'
       
-      await new Promise((resolve, reject) => {
-        this.ballSprite!.onload = resolve
-        this.ballSprite!.onerror = reject
-      })
+      // Load background sprite
+      this.backgroundSprite = new Image()
+      this.backgroundSprite.src = '/assets/sprites/playfield_background_02.png'
+      
+      // Wait for both images to load
+      await Promise.all([
+        new Promise((resolve, reject) => {
+          this.ballSprite!.onload = resolve
+          this.ballSprite!.onerror = reject
+        }),
+        new Promise((resolve, reject) => {
+          this.backgroundSprite!.onload = resolve
+          this.backgroundSprite!.onerror = reject
+        })
+      ])
       
       this.spritesLoaded = true
-      Debug.log('🎨 Ball sprite loaded successfully')
+      Debug.log('🎨 Ball and background sprites loaded successfully')
     } catch (error) {
-      Debug.log('❌ Failed to load ball sprite:', error)
+      Debug.log('❌ Failed to load sprites:', error)
       this.spritesLoaded = false
     }
   }
@@ -64,6 +77,22 @@ export class Renderer {
     if (!this.ctx) return
     
     this.ctx.clearRect(0, 0, this.width, this.height)
+  }
+
+  /**
+   * Draw the playfield background
+   */
+  public drawBackground(): void {
+    if (!this.ctx) return
+
+    if (this.backgroundSprite && this.spritesLoaded) {
+      // Draw the background image scaled to fit the playfield (360x640)
+      this.ctx.drawImage(this.backgroundSprite, 0, 0, 360, 640)
+    } else {
+      // Fallback to solid color background if image not loaded
+      this.ctx.fillStyle = '#1a1a1a'
+      this.ctx.fillRect(0, 0, 360, 640)
+    }
   }
 
   /**
@@ -120,22 +149,7 @@ export class Renderer {
     this.ctx.arc(bar.position.x, bar.position.y, 6, 0, Math.PI * 2)
     this.ctx.fill()
     
-    // Draw side height indicators
-    this.ctx.fillStyle = `rgba(0, 255, 255, 0.7)`
-    this.ctx.font = '12px monospace'
-    this.ctx.textAlign = 'center'
-    
-    // Left side indicator (show as height from bottom)
-    const leftHeight = 640 - bar.leftSideHeight
-    this.ctx.fillText(`L: ${leftHeight.toFixed(0)}`, bar.position.x - bar.width/4, Math.min(bar.leftSideHeight, bar.rightSideHeight) - 25)
-    
-    // Right side indicator (show as height from bottom)
-    const rightHeight = 640 - bar.rightSideHeight
-    this.ctx.fillText(`R: ${rightHeight.toFixed(0)}`, bar.position.x + bar.width/4, Math.min(bar.leftSideHeight, bar.rightSideHeight) - 25)
-    
-    // Overall tilt indicator
-    const tiltPercentage = bar.getTiltPercentage()
-    this.ctx.fillText(`Tilt: ${(tiltPercentage * 100).toFixed(0)}%`, bar.position.x, Math.min(bar.leftSideHeight, bar.rightSideHeight) - 40)
+
     
     // Restore context
     this.ctx.restore()
@@ -155,10 +169,10 @@ export class Renderer {
     switch (obstacle.type) {
       case 'electrical_hazard':
         // Draw electrical hazard with sparking effect
-        this.ctx.shadowColor = '#ff0080'
+        this.ctx.shadowColor = '#b600f9' // Neon Purple
         this.ctx.shadowBlur = obstacle.isActive ? 15 : 5
-        this.ctx.fillStyle = obstacle.isActive ? '#ff0080' : '#880040'
-        this.ctx.strokeStyle = '#ff44aa'
+        this.ctx.fillStyle = obstacle.isActive ? '#b600f9' : '#660066' // Neon Purple
+        this.ctx.strokeStyle = '#d466ff' // Lighter purple
         this.ctx.lineWidth = 2
         
         // Draw main hazard rectangle
@@ -171,7 +185,7 @@ export class Renderer {
         }
         
         // Draw warning symbol
-        this.ctx.fillStyle = '#ffff00'
+        this.ctx.fillStyle = '#00ff99' // Acid Green
         this.ctx.font = '12px monospace'
         this.ctx.textAlign = 'center'
         this.ctx.fillText('⚡', centerX, centerY + 4)
@@ -179,10 +193,10 @@ export class Renderer {
         
       case 'barrier':
         // Draw solid barrier
-        this.ctx.shadowColor = '#00ffff'
+        this.ctx.shadowColor = '#00f0ff' // Electric Blue
         this.ctx.shadowBlur = 10
-        this.ctx.fillStyle = '#006677'
-        this.ctx.strokeStyle = '#00ffff'
+        this.ctx.fillStyle = '#006677' // Darker blue
+        this.ctx.strokeStyle = '#00f0ff' // Electric Blue
         this.ctx.lineWidth = 2
         
         this.ctx.fillRect(obstacle.position.x, obstacle.position.y, obstacle.size.x, obstacle.size.y)
@@ -191,13 +205,20 @@ export class Renderer {
         
       case 'hole':
         // Draw hole/pit
-        this.ctx.shadowColor = '#ff4400'
+        this.ctx.shadowColor = '#b600f9' // Neon Purple
         this.ctx.shadowBlur = 8
-        this.ctx.fillStyle = '#220000'
-        this.ctx.strokeStyle = '#ff4400'
+        this.ctx.fillStyle = '#220000' // Dark red
+        this.ctx.strokeStyle = '#b600f9' // Neon Purple
         this.ctx.lineWidth = 2
         
         this.ctx.fillRect(obstacle.position.x, obstacle.position.y, obstacle.size.x, obstacle.size.y)
+        this.ctx.strokeRect(obstacle.position.x, obstacle.position.y, obstacle.size.x, obstacle.size.y)
+        break
+        
+      default:
+        // Draw generic obstacle
+        this.ctx.strokeStyle = '#ffffff'
+        this.ctx.lineWidth = 2
         this.ctx.strokeRect(obstacle.position.x, obstacle.position.y, obstacle.size.x, obstacle.size.y)
         break
     }
@@ -235,182 +256,175 @@ export class Renderer {
   }
 
   /**
-   * Draw a target port with glow effect
+   * Draw target port with neon cyberpunk styling
    */
   public drawTargetPort(port: any): void {
     if (!this.ctx) return
 
     this.ctx.save()
     
+    const centerX = port.position.x
+    const centerY = port.position.y
+    
     // Draw outer glow
     this.ctx.shadowColor = port.color
-    this.ctx.shadowBlur = 20 * port.glowIntensity
+    this.ctx.shadowBlur = 20
     this.ctx.fillStyle = port.color
-    this.ctx.globalAlpha = 0.3 * port.glowIntensity
+    this.ctx.globalAlpha = 0.3
     
     this.ctx.beginPath()
-    this.ctx.arc(port.position.x, port.position.y, port.radius + 10, 0, Math.PI * 2)
+    this.ctx.arc(centerX, centerY, port.radius + 10, 0, Math.PI * 2)
     this.ctx.fill()
     
-    // Draw main port circle
-    this.ctx.globalAlpha = port.isCompleted ? 0.5 : 0.8
-    this.ctx.shadowBlur = 10
-    this.ctx.fillStyle = port.isCompleted ? '#333333' : port.color
-    
-    this.ctx.beginPath()
-    this.ctx.arc(port.position.x, port.position.y, port.radius, 0, Math.PI * 2)
-    this.ctx.fill()
-    
-    // Draw port ring
     this.ctx.globalAlpha = 1
+    this.ctx.shadowBlur = 0
+    
+    // Draw port circle
+    this.ctx.fillStyle = port.isCompleted ? '#333333' : port.color
+    this.ctx.beginPath()
+    this.ctx.arc(centerX, centerY, port.radius, 0, Math.PI * 2)
+    this.ctx.fill()
+    
+    // Draw port outline
     this.ctx.strokeStyle = port.isCompleted ? '#666666' : port.color
     this.ctx.lineWidth = 3
-    this.ctx.shadowBlur = 5
-    
     this.ctx.beginPath()
-    this.ctx.arc(port.position.x, port.position.y, port.radius, 0, Math.PI * 2)
+    this.ctx.arc(centerX, centerY, port.radius, 0, Math.PI * 2)
     this.ctx.stroke()
     
-    // Draw center indicator
-    if (!port.isCompleted) {
-      this.ctx.fillStyle = '#ffffff'
-      this.ctx.shadowBlur = 0
-      this.ctx.beginPath()
-      this.ctx.arc(port.position.x, port.position.y, 4, 0, Math.PI * 2)
-      this.ctx.fill()
-    }
-    
-    // Draw completion checkmark
-    if (port.isCompleted) {
-      this.ctx.strokeStyle = '#00ff00'
-      this.ctx.lineWidth = 3
-      this.ctx.shadowBlur = 0
-      this.ctx.beginPath()
-      this.ctx.moveTo(port.position.x - 8, port.position.y)
-      this.ctx.lineTo(port.position.x - 2, port.position.y + 6)
-      this.ctx.lineTo(port.position.x + 8, port.position.y - 6)
-      this.ctx.stroke()
-    }
+    // Draw port symbol
+    this.ctx.fillStyle = '#ffffff'
+    this.ctx.font = '16px monospace'
+    this.ctx.textAlign = 'center'
+    this.ctx.fillText(port.isCompleted ? '✓' : '○', centerX, centerY + 6)
     
     this.ctx.restore()
   }
 
   /**
-   * Draw a hole with appropriate styling based on whether it's a goal or regular hole
+   * Draw a hole with neon cyberpunk styling
    */
   public drawHole(hole: any, isCompleted: boolean = false): void {
     if (!this.ctx) return
 
     this.ctx.save()
     
-    if (hole.isGoal) {
-      if (isCompleted) {
-        // Completed goal hole - dimmed with checkmark
-        this.ctx.shadowColor = '#00aa00'
-        this.ctx.shadowBlur = 10
-        this.ctx.fillStyle = '#003300'
-        this.ctx.globalAlpha = 0.6
-        
-        // Draw outer completed glow
-        this.ctx.beginPath()
-        this.ctx.arc(hole.position.x, hole.position.y, hole.radius + 10, 0, Math.PI * 2)
-        this.ctx.fill()
-        
-        // Draw main completed goal hole
-        this.ctx.globalAlpha = 0.8
-        this.ctx.shadowBlur = 8
-        this.ctx.fillStyle = '#002200'
-        
-        this.ctx.beginPath()
-        this.ctx.arc(hole.position.x, hole.position.y, hole.radius, 0, Math.PI * 2)
-        this.ctx.fill()
-        
-        // Draw completed goal ring
-        this.ctx.globalAlpha = 1
-        this.ctx.strokeStyle = '#00aa00'
-        this.ctx.lineWidth = 2
-        this.ctx.shadowBlur = 5
-        
-        this.ctx.beginPath()
-        this.ctx.arc(hole.position.x, hole.position.y, hole.radius, 0, Math.PI * 2)
-        this.ctx.stroke()
-        
-        // Draw checkmark for completed goal
-        this.ctx.fillStyle = '#00ff00'
-        this.ctx.shadowBlur = 0
-        fontManager.setFont(this.ctx, 'primary', 16)
-        this.ctx.textAlign = 'center'
-        this.ctx.fillText('✓', hole.position.x, hole.position.y + 5)
-        
-      } else {
-        // Active goal hole - bright pulsing glow
-        const pulseIntensity = 0.7 + 0.3 * Math.sin(Date.now() * 0.005)
-        
-        // Draw outer glow
-        this.ctx.shadowColor = '#00ff00'
-        this.ctx.shadowBlur = 25 * pulseIntensity
-        this.ctx.fillStyle = '#00ff00'
-        this.ctx.globalAlpha = 0.3 * pulseIntensity
-        
-        this.ctx.beginPath()
-        this.ctx.arc(hole.position.x, hole.position.y, hole.radius + 15, 0, Math.PI * 2)
-        this.ctx.fill()
-        
-        // Draw main goal hole
-        this.ctx.globalAlpha = 0.8
-        this.ctx.shadowBlur = 15
-        this.ctx.fillStyle = '#004400'
-        
-        this.ctx.beginPath()
-        this.ctx.arc(hole.position.x, hole.position.y, hole.radius, 0, Math.PI * 2)
-        this.ctx.fill()
-        
-        // Draw goal ring
-        this.ctx.globalAlpha = 1
-        this.ctx.strokeStyle = '#00ff00'
-        this.ctx.lineWidth = 3
-        this.ctx.shadowBlur = 10
-        
-        this.ctx.beginPath()
-        this.ctx.arc(hole.position.x, hole.position.y, hole.radius, 0, Math.PI * 2)
-        this.ctx.stroke()
-        
-        // Draw center goal indicator
-        this.ctx.fillStyle = '#ffffff'
-        this.ctx.shadowBlur = 0
-        fontManager.setFont(this.ctx, 'primary', 12)
-        this.ctx.textAlign = 'center'
-        this.ctx.fillText('🎯', hole.position.x, hole.position.y + 4)
-      }
-      
-    } else {
-      // Regular hole - dark pit with red glow
-      this.ctx.shadowColor = '#ff4400'
-      this.ctx.shadowBlur = 8
-      this.ctx.fillStyle = '#220000'
+    const centerX = hole.position.x
+    const centerY = hole.position.y
+    
+    // Choose colors based on hole type
+    const isGoalHole = hole.isGoal
+    const activeColor = isGoalHole ? '#ff6600' : '#00ff99' // Neon Orange for goals, Acid Green for regular holes
+    const darkColor = isGoalHole ? '#441100' : '#004400' // Dark orange vs dark green
+    const darkerColor = isGoalHole ? '#220000' : '#002200' // Darker orange vs darker green
+    
+    // Draw outer glow
+    this.ctx.strokeStyle = activeColor
+    this.ctx.lineWidth = 3
+    this.ctx.globalAlpha = 0.5
+    
+    this.ctx.beginPath()
+    this.ctx.arc(centerX, centerY, hole.radius + 5, 0, Math.PI * 2)
+    this.ctx.stroke()
+    
+    this.ctx.globalAlpha = 1
+    
+    // Draw hole interior
+    if (isCompleted) {
+      // Completed hole - show success state
+      this.ctx.shadowColor = activeColor
+      this.ctx.shadowBlur = 15
+      this.ctx.fillStyle = darkerColor
       
       this.ctx.beginPath()
-      this.ctx.arc(hole.position.x, hole.position.y, hole.radius, 0, Math.PI * 2)
+      this.ctx.arc(centerX, centerY, hole.radius - 2, 0, Math.PI * 2)
       this.ctx.fill()
       
-      // Draw hole ring
-      this.ctx.strokeStyle = '#ff4400'
-      this.ctx.lineWidth = 2
-      this.ctx.shadowBlur = 5
-      
+      // Draw completion indicator
+      this.ctx.fillStyle = darkerColor
       this.ctx.beginPath()
-      this.ctx.arc(hole.position.x, hole.position.y, hole.radius, 0, Math.PI * 2)
+      this.ctx.arc(centerX, centerY, hole.radius / 2, 0, Math.PI * 2)
+      this.ctx.fill()
+      
+      // Draw colored outline
+      this.ctx.strokeStyle = activeColor
+      this.ctx.lineWidth = 2
+      this.ctx.beginPath()
+      this.ctx.arc(centerX, centerY, hole.radius - 2, 0, Math.PI * 2)
       this.ctx.stroke()
       
-      // Draw inner darkness
-      this.ctx.globalAlpha = 0.8
-      this.ctx.fillStyle = '#000000'
-      this.ctx.shadowBlur = 0
+      // Draw checkmark
+      this.ctx.fillStyle = activeColor
+      this.ctx.font = '12px monospace'
+      this.ctx.textAlign = 'center'
+      this.ctx.fillText('✓', centerX, centerY + 4)
+    } else {
+      // Active hole - show glowing state
+      this.ctx.shadowColor = activeColor
+      this.ctx.shadowBlur = isGoalHole ? 15 : 10 // Stronger glow for goal holes
+      this.ctx.fillStyle = activeColor
+      this.ctx.globalAlpha = isGoalHole ? 0.8 : 0.6 // Brighter for goal holes
       
       this.ctx.beginPath()
-      this.ctx.arc(hole.position.x, hole.position.y, hole.radius - 3, 0, Math.PI * 2)
+      this.ctx.arc(centerX, centerY, hole.radius - 2, 0, Math.PI * 2)
       this.ctx.fill()
+      
+      this.ctx.globalAlpha = 1
+      
+      // Draw inner dark area
+      this.ctx.fillStyle = darkColor
+      this.ctx.beginPath()
+      this.ctx.arc(centerX, centerY, hole.radius / 2, 0, Math.PI * 2)
+      this.ctx.fill()
+      
+      // Draw colored outline
+      this.ctx.strokeStyle = activeColor
+      this.ctx.lineWidth = 2
+      this.ctx.beginPath()
+      this.ctx.arc(centerX, centerY, hole.radius - 2, 0, Math.PI * 2)
+      this.ctx.stroke()
+      
+      // Draw symbol - different for goal vs regular holes
+      this.ctx.fillStyle = '#ffffff'
+      this.ctx.font = '10px monospace'
+      this.ctx.textAlign = 'center'
+      this.ctx.fillText(isGoalHole ? '🎯' : '●', centerX, centerY + 3)
     }
+    
+    this.ctx.restore()
+  }
+
+  /**
+   * Draw danger zone with neon cyberpunk styling
+   */
+  public drawDangerZone(zone: any): void {
+    if (!this.ctx) return
+
+    this.ctx.save()
+    
+    const centerX = zone.position.x + zone.width / 2
+    const centerY = zone.position.y + zone.height / 2
+    
+    // Draw pulsing danger zone
+    this.ctx.shadowColor = '#b600f9' // Neon Purple
+    this.ctx.shadowBlur = 20
+    this.ctx.fillStyle = '#220000' // Dark red
+    this.ctx.globalAlpha = 0.7
+    
+    this.ctx.fillRect(zone.position.x, zone.position.y, zone.width, zone.height)
+    
+    this.ctx.globalAlpha = 1
+    
+    // Draw border
+    this.ctx.strokeStyle = '#b600f9' // Neon Purple
+    this.ctx.lineWidth = 3
+    this.ctx.strokeRect(zone.position.x, zone.position.y, zone.width, zone.height)
+    
+    // Draw warning symbol
+    this.ctx.fillStyle = '#000000'
+    this.ctx.font = '20px monospace'
+    this.ctx.textAlign = 'center'
+    this.ctx.fillText('⚠', centerX, centerY + 8)
     
     this.ctx.restore()
   }
