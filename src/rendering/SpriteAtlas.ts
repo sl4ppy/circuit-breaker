@@ -1,7 +1,7 @@
 // Circuit Breaker - Sprite Atlas Manager
 // Efficient sprite loading and management using texture atlases
 
-import { Debug } from '../utils/Debug.js'
+import { Debug } from '../utils/Debug'
 
 export interface SpriteFrame {
   x: number
@@ -83,6 +83,7 @@ export class SpriteAtlas {
     scale: number = 1
   ): boolean {
     if (!this.isLoaded || !this.atlasImage || !this.atlasData) {
+      Debug.log(`⚠️ Cannot draw sprite ${spriteName}: not loaded`)
       return false
     }
 

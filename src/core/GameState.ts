@@ -3,6 +3,7 @@
 
 export enum GameStateType {
   MENU = 'menu',
+  ATTRACT_MODE = 'attract_mode', // Auto-play demo mode
   PLAYING = 'playing',
   PAUSED = 'paused',
   CONFIRM_MENU = 'confirm_menu', // Confirmation dialog for returning to menu
@@ -98,6 +99,20 @@ export class GameState {
    */
   public isConfirmingMenu(): boolean {
     return this.currentState === GameStateType.CONFIRM_MENU
+  }
+
+  /**
+   * Check if in attract mode
+   */
+  public isAttractMode(): boolean {
+    return this.currentState === GameStateType.ATTRACT_MODE
+  }
+
+  /**
+   * Check if in loading state
+   */
+  public isLoading(): boolean {
+    return this.currentState === GameStateType.LOADING
   }
 
   /**

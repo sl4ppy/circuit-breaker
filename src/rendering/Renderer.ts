@@ -3,7 +3,7 @@
 
 import { Debug } from '../utils/Debug'
 import { fontManager } from '../utils/FontManager'
-import { spriteAtlas } from './SpriteAtlas.js'
+import { spriteAtlas } from './SpriteAtlas'
 
 export class Renderer {
   private canvas: HTMLCanvasElement | null = null
@@ -128,7 +128,7 @@ export class Renderer {
   }
 
   /**
-   * Draw a tilting bar with neon cyberpunk styling
+   * Draw a tilting bar with neon cyberpunk styling using tiled sprites
    */
   public drawTiltingBar(bar: any): void {
     if (!this.ctx) return
@@ -138,7 +138,7 @@ export class Renderer {
     // Save context
     this.ctx.save()
     
-    // Draw glow effect
+    // Draw glow effect FIRST (behind the sprites)
     this.ctx.shadowColor = bar.glowColor
     this.ctx.shadowBlur = 20
     this.ctx.lineWidth = bar.thickness + 4
@@ -150,9 +150,99 @@ export class Renderer {
     this.ctx.lineTo(endpoints.end.x, endpoints.end.y)
     this.ctx.stroke()
     
-    // Draw main bar
+    // Reset shadow effects for sprite rendering
     this.ctx.shadowBlur = 0
+    this.ctx.shadowColor = 'transparent'
     this.ctx.globalAlpha = 1
+    
+    // Use sprite atlas if available, otherwise fallback to line rendering
+    if (this.spritesLoaded && spriteAtlas.isAtlasLoaded()) {
+      const barFrame = spriteAtlas.getFrame('bar_normal')
+      
+      if (barFrame) {
+        // Calculate bar properties
+        const barLength = Math.sqrt(
+          Math.pow(endpoints.end.x - endpoints.start.x, 2) + 
+          Math.pow(endpoints.end.y - endpoints.start.y, 2)
+        )
+        const barAngle = Math.atan2(
+          endpoints.end.y - endpoints.start.y, 
+          endpoints.end.x - endpoints.start.x
+        )
+        
+        // Calculate scaling and tiling
+        const spriteScale = bar.thickness / barFrame.h  // Scale to match bar thickness
+        const scaledSpriteWidth = barFrame.w * spriteScale
+        const tilesNeeded = Math.ceil(barLength / scaledSpriteWidth)
+        
+        // Calculate the center point of the actual bar (between endpoints)
+        const barCenterX = (endpoints.start.x + endpoints.end.x) / 2
+        const barCenterY = (endpoints.start.y + endpoints.end.y) / 2
+        
+        // Set up transformation matrix for rotation and positioning
+        this.ctx.translate(barCenterX, barCenterY)
+        this.ctx.rotate(barAngle)
+        
+        // Tile the bar sprite along the length
+        for (let i = 0; i < tilesNeeded; i++) {
+          const tileX = (i * scaledSpriteWidth) - (barLength / 2)
+          const tileY = -bar.thickness / 2
+          
+          // Clip the last tile if it extends beyond the bar length
+          const remainingLength = barLength - (i * scaledSpriteWidth)
+          const tileWidth = Math.min(scaledSpriteWidth, remainingLength)
+          
+          if (tileWidth > 0) {
+            // Save context for potential clipping
+            this.ctx.save()
+            
+            // Clip if this is a partial tile
+            if (tileWidth < scaledSpriteWidth) {
+              this.ctx.beginPath()
+              this.ctx.rect(tileX, tileY, tileWidth, bar.thickness)
+              this.ctx.clip()
+            }
+            
+            // Draw the sprite tile
+            spriteAtlas.drawSprite(
+              this.ctx,
+              'bar_normal',
+              tileX,
+              tileY,
+              spriteScale
+            )
+            
+            this.ctx.restore()
+          }
+        }
+        
+        // Reset transformation for pivot point
+        this.ctx.setTransform(1, 0, 0, 1, 0, 0)
+      } else {
+        // Fallback to line rendering if sprite not found
+        this.renderBarFallback(endpoints, bar)
+      }
+    } else {
+      // Fallback to line rendering if atlas not loaded
+      this.renderBarFallback(endpoints, bar)
+    }
+    
+    // Draw center pivot point (always rendered)
+    this.ctx.fillStyle = bar.color
+    this.ctx.beginPath()
+    this.ctx.arc(bar.position.x, bar.position.y, 6, 0, Math.PI * 2)
+    this.ctx.fill()
+    
+    // Restore context
+    this.ctx.restore()
+  }
+  
+  /**
+   * Fallback bar rendering using lines
+   */
+  private renderBarFallback(endpoints: any, bar: any): void {
+    if (!this.ctx) return
+    
     this.ctx.lineWidth = bar.thickness
     this.ctx.strokeStyle = bar.color
     
@@ -160,17 +250,6 @@ export class Renderer {
     this.ctx.moveTo(endpoints.start.x, endpoints.start.y)
     this.ctx.lineTo(endpoints.end.x, endpoints.end.y)
     this.ctx.stroke()
-    
-    // Draw center pivot point
-    this.ctx.fillStyle = bar.color
-    this.ctx.beginPath()
-    this.ctx.arc(bar.position.x, bar.position.y, 6, 0, Math.PI * 2)
-    this.ctx.fill()
-    
-
-    
-    // Restore context
-    this.ctx.restore()
   }
 
   /**
@@ -320,32 +399,112 @@ export class Renderer {
   }
 
   /**
-   * Draw a hole with neon cyberpunk styling
+   * Draw a hole using sprite atlas or fallback to neon cyberpunk styling
    */
-  public drawHole(hole: any, isCompleted: boolean = false): void {
+  public drawHole(hole: any, isCompleted: boolean = false, debugMode: boolean = false): void {
     if (!this.ctx) return
 
     this.ctx.save()
     
     const centerX = hole.position.x
     const centerY = hole.position.y
+    const isGoalHole = hole.isGoal
+    
+    // Make holes 20% bigger for better visibility
+    const enlargedRadius = hole.radius * 1.2
     
     // Choose colors based on hole type
-    const isGoalHole = hole.isGoal
     const activeColor = isGoalHole ? '#ff6600' : '#00ff99' // Neon Orange for goals, Acid Green for regular holes
     const darkColor = isGoalHole ? '#441100' : '#004400' // Dark orange vs dark green
     const darkerColor = isGoalHole ? '#220000' : '#002200' // Darker orange vs darker green
     
-    // Draw outer glow
-    this.ctx.strokeStyle = activeColor
-    this.ctx.lineWidth = 3
-    this.ctx.globalAlpha = 0.5
+    // Use sprite atlas if available, otherwise fallback to procedural rendering
+    if (this.spritesLoaded && spriteAtlas.isAtlasLoaded()) {
+      // Choose sprite based on hole type
+      const spriteName = isGoalHole ? 'ball_whole_powerup' : 'ball_whole_normal'
+      const holeFrame = spriteAtlas.getFrame(spriteName)
+      
+      if (holeFrame) {
+        // Calculate scaling to fit the enlarged hole radius
+        const targetSize = enlargedRadius * 2
+        const spriteScale = targetSize / Math.max(holeFrame.w, holeFrame.h)
+        
+        // Draw outer glow first (behind sprite) - only in debug mode
+        if (debugMode) {
+          this.ctx.strokeStyle = activeColor
+          this.ctx.lineWidth = 3
+          this.ctx.globalAlpha = 0.5
+          
+          this.ctx.beginPath()
+          this.ctx.arc(centerX, centerY, enlargedRadius + 5, 0, Math.PI * 2)
+          this.ctx.stroke()
+          
+          this.ctx.globalAlpha = 1
+        }
+        
+        // Draw hole sprite
+        if (isCompleted) {
+          // Dimmed for completed holes
+          this.ctx.globalAlpha = 0.6
+        }
+        
+        spriteAtlas.drawSprite(
+          this.ctx,
+          spriteName,
+          centerX - (holeFrame.w * spriteScale) / 2,  // Center horizontally
+          centerY - (holeFrame.h * spriteScale) / 2,  // Center vertically
+          spriteScale
+        )
+        
+        this.ctx.globalAlpha = 1
+        
+        // Add completion indicator if needed
+        if (isCompleted) {
+          // Draw completion overlay
+          this.ctx.fillStyle = activeColor
+          this.ctx.globalAlpha = 0.3
+          this.ctx.beginPath()
+          this.ctx.arc(centerX, centerY, enlargedRadius - 2, 0, Math.PI * 2)
+          this.ctx.fill()
+          
+          this.ctx.globalAlpha = 1
+          
+          // Draw checkmark
+          this.ctx.fillStyle = activeColor
+          this.ctx.font = '12px monospace'
+          this.ctx.textAlign = 'center'
+          this.ctx.fillText('✓', centerX, centerY + 4)
+        }
+      } else {
+        // Fallback to procedural rendering if sprite not found
+        this.renderHoleFallback(hole, isCompleted, centerX, centerY, isGoalHole, activeColor, darkColor, darkerColor, debugMode, enlargedRadius)
+      }
+    } else {
+      // Fallback to procedural rendering if atlas not loaded
+      this.renderHoleFallback(hole, isCompleted, centerX, centerY, isGoalHole, activeColor, darkColor, darkerColor, debugMode, enlargedRadius)
+    }
     
-    this.ctx.beginPath()
-    this.ctx.arc(centerX, centerY, hole.radius + 5, 0, Math.PI * 2)
-    this.ctx.stroke()
+    this.ctx.restore()
+  }
+  
+  /**
+   * Fallback hole rendering using procedural graphics
+   */
+  private renderHoleFallback(hole: any, isCompleted: boolean, centerX: number, centerY: number, isGoalHole: boolean, activeColor: string, darkColor: string, darkerColor: string, debugMode: boolean, enlargedRadius: number): void {
+    if (!this.ctx) return
     
-    this.ctx.globalAlpha = 1
+    // Draw outer glow - only in debug mode
+    if (debugMode) {
+      this.ctx.strokeStyle = activeColor
+      this.ctx.lineWidth = 3
+      this.ctx.globalAlpha = 0.5
+      
+      this.ctx.beginPath()
+      this.ctx.arc(centerX, centerY, enlargedRadius + 5, 0, Math.PI * 2)
+      this.ctx.stroke()
+      
+      this.ctx.globalAlpha = 1
+    }
     
     // Draw hole interior
     if (isCompleted) {
@@ -355,20 +514,20 @@ export class Renderer {
       this.ctx.fillStyle = darkerColor
       
       this.ctx.beginPath()
-      this.ctx.arc(centerX, centerY, hole.radius - 2, 0, Math.PI * 2)
+      this.ctx.arc(centerX, centerY, enlargedRadius - 2, 0, Math.PI * 2)
       this.ctx.fill()
       
       // Draw completion indicator
       this.ctx.fillStyle = darkerColor
       this.ctx.beginPath()
-      this.ctx.arc(centerX, centerY, hole.radius / 2, 0, Math.PI * 2)
+      this.ctx.arc(centerX, centerY, enlargedRadius / 2, 0, Math.PI * 2)
       this.ctx.fill()
       
       // Draw colored outline
       this.ctx.strokeStyle = activeColor
       this.ctx.lineWidth = 2
       this.ctx.beginPath()
-      this.ctx.arc(centerX, centerY, hole.radius - 2, 0, Math.PI * 2)
+      this.ctx.arc(centerX, centerY, enlargedRadius - 2, 0, Math.PI * 2)
       this.ctx.stroke()
       
       // Draw checkmark
@@ -384,7 +543,7 @@ export class Renderer {
       this.ctx.globalAlpha = isGoalHole ? 0.8 : 0.6 // Brighter for goal holes
       
       this.ctx.beginPath()
-      this.ctx.arc(centerX, centerY, hole.radius - 2, 0, Math.PI * 2)
+      this.ctx.arc(centerX, centerY, enlargedRadius - 2, 0, Math.PI * 2)
       this.ctx.fill()
       
       this.ctx.globalAlpha = 1
@@ -392,14 +551,14 @@ export class Renderer {
       // Draw inner dark area
       this.ctx.fillStyle = darkColor
       this.ctx.beginPath()
-      this.ctx.arc(centerX, centerY, hole.radius / 2, 0, Math.PI * 2)
+      this.ctx.arc(centerX, centerY, enlargedRadius / 2, 0, Math.PI * 2)
       this.ctx.fill()
       
       // Draw colored outline
       this.ctx.strokeStyle = activeColor
       this.ctx.lineWidth = 2
       this.ctx.beginPath()
-      this.ctx.arc(centerX, centerY, hole.radius - 2, 0, Math.PI * 2)
+      this.ctx.arc(centerX, centerY, enlargedRadius - 2, 0, Math.PI * 2)
       this.ctx.stroke()
       
       // Draw symbol - different for goal vs regular holes
@@ -408,8 +567,6 @@ export class Renderer {
       this.ctx.textAlign = 'center'
       this.ctx.fillText(isGoalHole ? '🎯' : '●', centerX, centerY + 3)
     }
-    
-    this.ctx.restore()
   }
 
   /**

@@ -97,8 +97,12 @@ export class GameLoop {
     this.renderer.clear()
 
     // Render game based on state
-    if (gameState.isPlaying()) {
+    if (gameState.isLoading()) {
+      this.renderLoading(gameState)
+    } else if (gameState.isPlaying()) {
       this.renderGameplay(gameState)
+    } else if (gameState.isAttractMode()) {
+      this.renderAttractMode(gameState)
     } else if (gameState.isState(GameStateType.MENU)) {
       this.renderMenu(gameState)
     } else if (gameState.isState(GameStateType.PAUSED)) {
@@ -286,6 +290,163 @@ export class GameLoop {
   }
 
   /**
+   * Render loading screen
+   */
+  private renderLoading(gameState: GameState): void {
+    if (!this.renderer) return
+
+    const ctx = this.renderer.getContext()
+    if (!ctx) return
+
+    // Draw background
+    this.renderer.drawBackground()
+
+    // Get loading progress from game instance
+    const loadingProgress = this.game && this.game.getLoadingProgress ? this.game.getLoadingProgress() : 0
+    const loadingStatus = this.game && this.game.getLoadingStatus ? this.game.getLoadingStatus() : 'Initializing...'
+    const isLoadingComplete = this.game && this.game.isLoadingComplete ? this.game.isLoadingComplete() : false
+
+    // Draw main title with neon glow
+    ctx.save()
+    ctx.shadowColor = '#00f0ff' // Electric Blue
+    ctx.shadowBlur = 20
+    ctx.fillStyle = '#b600f9' // Neon Purple
+    fontManager.setFont(ctx, 'display', 72, 'bold')
+    ctx.textAlign = 'center'
+    ctx.fillText('CIRCUIT', 180, 120)
+    ctx.fillText('BREAKER', 180, 180)
+    ctx.restore()
+
+    // Draw loading text with pulse effect
+    const time = Date.now()
+    const pulseAlpha = 0.6 + 0.4 * Math.sin(time / 600)
+    ctx.save()
+    ctx.globalAlpha = pulseAlpha
+    ctx.fillStyle = '#00f0ff' // Electric Blue
+    fontManager.setFont(ctx, 'primary', 18, 'bold')
+    ctx.textAlign = 'center'
+    ctx.fillText('LOADING...', 180, 260)
+    ctx.restore()
+
+    // Draw progress bar background
+    const barWidth = 300
+    const barHeight = 20
+    const barX = (360 - barWidth) / 2
+    const barY = 300
+
+    ctx.fillStyle = '#222222'
+    ctx.fillRect(barX, barY, barWidth, barHeight)
+
+    // Draw progress bar border
+    ctx.strokeStyle = '#00f0ff'
+    ctx.lineWidth = 2
+    ctx.strokeRect(barX, barY, barWidth, barHeight)
+
+    // Draw progress bar fill
+    const progressWidth = (loadingProgress / 100) * (barWidth - 4)
+    if (progressWidth > 0) {
+      ctx.fillStyle = '#00f0ff'
+      ctx.fillRect(barX + 2, barY + 2, progressWidth, barHeight - 4)
+    }
+
+    // Draw progress percentage
+    ctx.fillStyle = '#ffffff'
+    fontManager.setFont(ctx, 'primary', 14)
+    ctx.textAlign = 'center'
+    ctx.fillText(`${Math.round(loadingProgress)}%`, 180, 345)
+
+    // Draw loading status with different styling when complete
+    if (isLoadingComplete) {
+      // Pulsing "Press any key" message when complete
+      const pulseAlpha = 0.6 + 0.4 * Math.sin(time / 400)
+      ctx.save()
+      ctx.globalAlpha = pulseAlpha
+      ctx.shadowColor = '#00ff99' // Acid Green
+      ctx.shadowBlur = 10
+      ctx.fillStyle = '#00ff99' // Acid Green
+      fontManager.setFont(ctx, 'primary', 14, 'bold')
+      ctx.textAlign = 'center'
+      ctx.fillText(loadingStatus, 180, 370)
+      ctx.restore()
+    } else {
+      // Normal status text while loading
+      ctx.fillStyle = '#888888'
+      fontManager.setFont(ctx, 'primary', 12)
+      ctx.textAlign = 'center'
+      ctx.fillText(loadingStatus, 180, 370)
+
+      // Draw spinning loading indicator only while loading
+      const spinnerSize = 30
+      const spinnerX = 180
+      const spinnerY = 400
+      const rotation = (time / 100) % (Math.PI * 2)
+
+      ctx.save()
+      ctx.translate(spinnerX, spinnerY)
+      ctx.rotate(rotation)
+      ctx.strokeStyle = '#00f0ff'
+      ctx.lineWidth = 3
+      ctx.beginPath()
+      ctx.arc(0, 0, spinnerSize / 2, 0, Math.PI * 1.5)
+      ctx.stroke()
+      ctx.restore()
+    }
+
+    // Draw version info
+    ctx.fillStyle = '#444444'
+    fontManager.setFont(ctx, 'primary', 8)
+    ctx.fillText('Circuit Breaker v0.6.0', 180, 590)
+  }
+
+  /**
+   * Render attract mode
+   */
+  private renderAttractMode(gameState: GameState): void {
+    if (!this.renderer) return
+
+    // Render the gameplay (same as playing state)
+    this.renderGameplay(gameState)
+
+    // Add attract mode overlay
+    const ctx = this.renderer.getContext()
+    if (!ctx) return
+
+    // Draw semi-transparent overlay
+    ctx.save()
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.3)'
+    ctx.fillRect(0, 0, 360, 640)
+
+    // Draw attract mode title with pulse effect
+    const time = Date.now()
+    const pulseAlpha = 0.5 + 0.5 * Math.sin(time / 800)
+    ctx.globalAlpha = pulseAlpha
+    ctx.shadowColor = '#00f0ff' // Electric Blue
+    ctx.shadowBlur = 15
+    ctx.fillStyle = '#00f0ff' // Electric Blue
+    fontManager.setFont(ctx, 'display', 48, 'bold')
+    ctx.textAlign = 'center'
+    ctx.fillText('ATTRACT MODE', 180, 80)
+    ctx.restore()
+
+    // Draw demo text
+    ctx.fillStyle = '#ffffff'
+    fontManager.setFont(ctx, 'primary', 14)
+    ctx.textAlign = 'center'
+    ctx.fillText('CIRCUIT BREAKER DEMO', 180, 120)
+    ctx.fillText('Press any key to return to menu', 180, 140)
+
+    // Draw controls reminder
+    ctx.fillStyle = '#888888'
+    fontManager.setFont(ctx, 'primary', 10)
+    ctx.fillText('A/Z - Left Side Up/Down', 180, 580)
+    ctx.fillText('↑/↓ - Right Side Up/Down', 180, 595)
+    ctx.fillText('SPACE - Start/Place Ball', 180, 610)
+    ctx.fillText('D - Toggle Debug Mode', 180, 625)
+
+    ctx.restore()
+  }
+
+  /**
    * Render menu
    */
   private renderMenu(gameState: GameState): void {
@@ -374,7 +535,7 @@ export class GameLoop {
     // Draw version info
     ctx.fillStyle = '#444444'
     fontManager.setFont(ctx, 'primary', 8)
-    ctx.fillText('Circuit Breaker v0.3.0', 180, 590)
+    ctx.fillText('Circuit Breaker v0.6.0', 180, 590)
   }
 
   /**

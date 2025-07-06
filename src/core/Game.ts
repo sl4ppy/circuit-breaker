@@ -35,6 +35,19 @@ export class Game {
     scale: number
     opacity: number
   } | null = null
+  
+  // Attract mode properties
+  private menuTimer: number = 0
+  private readonly attractModeDelay: number = 10000 // 10 seconds in milliseconds
+  private attractModeTimer: number = 0
+  private attractModeAutoPlayInterval: number = 0
+  
+  // Loading properties
+  private loadingProgress: number = 0
+  private loadingStatus: string = 'Initializing...'
+  private assetsToLoad: string[] = []
+  private loadedAssets: number = 0
+  private loadingComplete: boolean = false
 
   constructor() {
     this.gameState = new GameState()
@@ -142,8 +155,11 @@ export class Game {
     }
 
     console.log('▶️ Starting Circuit Breaker...')
-    this.gameState.setState(GameStateType.MENU)
+    this.gameState.setState(GameStateType.LOADING)
     this.gameLoop.start(this.gameState, this.renderer, this.physicsEngine, this)
+    
+    // Start asset loading process
+    this.startAssetLoading()
   }
 
   /**
@@ -153,11 +169,28 @@ export class Game {
     // Update input
     this.inputManager.update()
     
+    // Handle loading input - transition to menu when user interacts
+    if (this.gameState.isLoading()) {
+      if (this.loadingComplete && this.hasAnyInput()) {
+        console.log('🎮 User interaction detected - transitioning to menu')
+        this.completeLoading()
+      }
+      // Don't process other input during loading
+      this.inputManager.endFrame()
+      return
+    }
+    
     // Handle menu input - start new game when clicking or pressing space
     if (this.gameState.isState(GameStateType.MENU)) {
+      // Check for any user interaction to reset menu timer
+      if (this.hasAnyInput()) {
+        this.menuTimer = 0
+      }
+      
       if (this.inputManager.isActionJustPressed('start') || this.inputManager.isMouseJustPressed()) {
         console.log('🎮 Starting new game...')
         this.startNewGame()
+        this.menuTimer = 0 // Reset timer
         
         // Resume audio context on user interaction (required by browsers)
         this.audioManager.resumeContext()
@@ -169,6 +202,7 @@ export class Game {
       // Handle debug mode toggle
       if (this.inputManager.isKeyJustPressed('KeyD')) {
         this.gameState.toggleDebugMode()
+        this.menuTimer = 0 // Reset timer
         
         // Update physics engine debug mode to match
         this.physicsEngine.setDebug(this.gameState.isDebugMode())
@@ -176,6 +210,25 @@ export class Game {
         // Play UI click sound
         this.audioManager.playSound('ui_click')
       }
+      
+      // Update menu timer and check for attract mode
+      this.menuTimer += deltaTime
+      if (this.menuTimer >= this.attractModeDelay) {
+        console.log('🎬 Starting attract mode...')
+        this.startAttractMode()
+      }
+    }
+    
+    // Handle attract mode input
+    if (this.gameState.isAttractMode()) {
+      // Exit attract mode on any key press
+      if (this.hasAnyInput()) {
+        console.log('🏠 Exiting attract mode - returning to menu...')
+        this.exitAttractMode()
+      }
+      
+      // Update attract mode auto-play
+      this.updateAttractMode(deltaTime)
     }
     
     // Handle game over input - return to menu when clicking or pressing space
@@ -186,6 +239,9 @@ export class Game {
         
         // Play UI click sound
         this.audioManager.playSound('ui_click')
+        
+        // Return to menu music
+        this.playMenuMusic()
       }
     }
 
@@ -311,19 +367,24 @@ export class Game {
    * Render additional game elements (called by GameLoop)
    */
   public renderGameplay(): void {
-    // Render tilting bar
-    this.renderer.drawTiltingBar(this.tiltingBar)
-    
-    // Render level elements
+    // Render level elements FIRST (background)
     if (this.currentLevel) {
       const levelData = this.currentLevel.getLevelData()
       
-      // Draw holes
+      // Draw holes FIRST (under everything)
       levelData.holes.forEach(hole => {
         // Check if this goal hole has been completed
         const isCompleted = hole.isGoal && this.currentLevel ? this.currentLevel.isGoalCompleted(hole.id) : false
-        this.renderer.drawHole(hole, isCompleted)
+        this.renderer.drawHole(hole, isCompleted, this.gameState.isDebugMode())
       })
+    }
+    
+    // Render tilting bar AFTER holes (so it appears on top)
+    this.renderer.drawTiltingBar(this.tiltingBar)
+    
+    // Render UI elements
+    if (this.currentLevel) {
+      const levelData = this.currentLevel.getLevelData()
       
       // Draw essential UI (always visible)
       const ctx = this.renderer.getContext()
@@ -569,6 +630,11 @@ export class Game {
     // Play game over sound
     this.audioManager.playSound('game_over')
     
+    // Return to menu music after a short delay
+    setTimeout(() => {
+      this.playMenuMusic()
+    }, 1000)
+    
     // Auto-return to menu after 5 seconds if user doesn't interact
     setTimeout(() => {
       if (this.gameState.isState(GameStateType.GAME_OVER)) {
@@ -583,6 +649,11 @@ export class Game {
    */
   private handleGameComplete(): void {
     console.log('🎊 Game completed! All levels finished!')
+    
+    // Return to menu music after a short delay
+    setTimeout(() => {
+      this.playMenuMusic()
+    }, 1000)
     
     // Show completion message briefly, then return to main menu
     setTimeout(() => {
@@ -657,6 +728,9 @@ export class Game {
     
     // Reset ball to starting position on the bar
     this.placeBallOnBar()
+    
+    // Switch to gameplay music
+    this.playGameplayMusic()
     
     console.log('🚀 New game started successfully!')
   }
@@ -743,4 +817,300 @@ export class Game {
     // Now perform the actual ball reset
     this.handleBallFallOff()
   }
-} 
+  
+  /**
+   * Check if any input is currently active
+   */
+  private hasAnyInput(): boolean {
+    const inputState = this.inputManager.getInputState()
+    
+    // Check if any key is pressed
+    const hasKeyPress = Object.values(inputState.keys).some(pressed => pressed)
+    
+    // Check if mouse is clicked
+    const hasMouseClick = inputState.mouse.isDown
+    
+    return hasKeyPress || hasMouseClick
+  }
+  
+  /**
+   * Start attract mode
+   */
+  private startAttractMode(): void {
+    console.log('🎬 Entering attract mode')
+    this.gameState.setState(GameStateType.ATTRACT_MODE)
+    this.attractModeTimer = 0
+    this.menuTimer = 0
+    
+    // Start a level for attract mode demonstration
+    this.startAttractModeLevel()
+    
+    // Continue playing menu music during attract mode
+    // (No need to change music since it's already playing from menu)
+  }
+  
+  /**
+   * Exit attract mode and return to menu
+   */
+  private exitAttractMode(): void {
+    console.log('🏠 Exiting attract mode')
+    this.gameState.setState(GameStateType.MENU)
+    this.attractModeTimer = 0
+    this.menuTimer = 0
+    
+    // Reset any ongoing game state
+    this.gameState.reset()
+    
+    // Play UI click sound
+    this.audioManager.playSound('ui_click')
+    
+    // Return to menu music
+    this.playMenuMusic()
+  }
+  
+  /**
+   * Update attract mode auto-play
+   */
+  private updateAttractMode(deltaTime: number): void {
+    this.attractModeTimer += deltaTime
+    
+    // Auto-play logic - simple automated bar movement
+    const time = this.attractModeTimer / 1000 // Convert to seconds
+    const leftInput = Math.sin(time * 0.8) * 0.7 // Slow left side movement
+    const rightInput = Math.cos(time * 0.6) * 0.8 // Slow right side movement
+    
+    // Apply automated input to tilting bar
+    this.tiltingBar.moveLeftSide(leftInput)
+    this.tiltingBar.moveRightSide(rightInput)
+    this.tiltingBar.update(deltaTime / 1000)
+    
+    // Periodically place ball on bar for demonstration
+    if (Math.floor(time) % 8 === 0 && (time % 8) < 0.1) {
+      this.placeBallOnBar()
+    }
+    
+    // Update current level if exists
+    if (this.currentLevel) {
+      this.currentLevel.update(deltaTime)
+      this.checkCollisions()
+      this.checkWinLoseConditions()
+    }
+    
+    // Reset attract mode after 30 seconds to prevent infinite loops
+    if (this.attractModeTimer > 30000) {
+      this.exitAttractMode()
+    }
+  }
+  
+  /**
+   * Start a level for attract mode demonstration
+   */
+  private startAttractModeLevel(): void {
+    try {
+      // Load level 1 for demonstration (use same method as startNewGame)
+      this.currentLevel = this.levelManager.loadLevel(1)
+      
+      if (this.currentLevel) {
+        console.log('🎮 Starting attract mode level')
+        this.currentLevel.start()
+        
+        // Reset tilting bar to starting position
+        this.tiltingBar.reset()
+        
+        // Place ball on bar
+        this.placeBallOnBar()
+        
+        console.log('✅ Attract mode level started successfully')
+      } else {
+        console.error('❌ Failed to load attract mode level')
+        this.exitAttractMode()
+      }
+    } catch (error) {
+      console.error('❌ Error starting attract mode level:', error)
+      this.exitAttractMode()
+    }
+  }
+
+  /**
+   * Play menu music
+   */
+  private async playMenuMusic(): Promise<void> {
+    try {
+      await this.audioManager.playMusic('Engage_II.mp3', true, 0.6)
+      console.log('🎵 Menu music started')
+    } catch (error) {
+      console.error('❌ Error playing menu music:', error)
+    }
+  }
+
+  /**
+   * Play gameplay music
+   */
+  private async playGameplayMusic(): Promise<void> {
+    try {
+      await this.audioManager.playMusic('Dead_Space.mp3', true, 0.4)
+      console.log('🎵 Gameplay music started')
+    } catch (error) {
+      console.error('❌ Error playing gameplay music:', error)
+    }
+  }
+
+  /**
+   * Stop all music
+   */
+  private stopMusic(): void {
+    this.audioManager.stopMusic()
+  }
+
+  /**
+   * Get current loading progress (0-100)
+   */
+  public getLoadingProgress(): number {
+    return this.loadingProgress
+  }
+
+  /**
+   * Get current loading status message
+   */
+  public getLoadingStatus(): string {
+    return this.loadingStatus
+  }
+
+  /**
+   * Check if loading is complete and waiting for user input
+   */
+  public isLoadingComplete(): boolean {
+    return this.loadingComplete
+  }
+
+  /**
+   * Start the asset loading process
+   */
+  private async startAssetLoading(): Promise<void> {
+    console.log('📦 Starting asset loading...')
+    
+    // Define all assets that need to be loaded
+    this.assetsToLoad = [
+      'Engage_II.mp3',
+      'Dead_Space.mp3',
+      'atlas_01.json',
+      'atlas_01.png'
+    ]
+    
+    this.loadedAssets = 0
+    this.loadingProgress = 0
+    this.loadingStatus = 'Loading audio files...'
+    this.loadingComplete = false
+    
+    try {
+      // Load audio files
+      await this.loadAudioAssets()
+      
+      // Load sprite atlas
+      this.loadingStatus = 'Loading sprite atlas...'
+      await this.loadSpriteAssets()
+      
+      // Initialize fonts
+      this.loadingStatus = 'Loading fonts...'
+      await this.loadFonts()
+      
+      // Complete loading
+      this.loadingProgress = 100
+      this.loadingStatus = 'Press any key to continue...'
+      this.loadingComplete = true
+      
+      console.log('✅ All assets loaded successfully')
+      
+    } catch (error) {
+      console.error('❌ Error loading assets:', error)
+      this.loadingStatus = 'Loading failed - Press any key to continue...'
+      this.loadingComplete = true
+    }
+  }
+
+  /**
+   * Load audio assets
+   */
+  private async loadAudioAssets(): Promise<void> {
+    const audioFiles = this.assetsToLoad.filter(asset => asset.endsWith('.mp3'))
+    
+    for (let i = 0; i < audioFiles.length; i++) {
+      const filename = audioFiles[i]
+      this.loadingStatus = `Loading ${filename}...`
+      
+      try {
+        await this.audioManager.loadMusic(filename)
+        this.loadedAssets++
+        this.updateLoadingProgress()
+        console.log(`✅ Loaded audio: ${filename}`)
+      } catch (error) {
+        console.warn(`⚠️ Failed to load audio: ${filename}`, error)
+        this.loadedAssets++
+        this.updateLoadingProgress()
+      }
+      
+      // Small delay to show progress
+      await this.delay(100)
+    }
+  }
+
+  /**
+   * Load sprite assets
+   */
+  private async loadSpriteAssets(): Promise<void> {
+    // The sprite atlas is already loaded by the renderer during init
+    // Just simulate loading for progress tracking
+    const spriteFiles = this.assetsToLoad.filter(asset => asset.endsWith('.json') || asset.endsWith('.png'))
+    
+    for (let i = 0; i < spriteFiles.length; i++) {
+      const filename = spriteFiles[i]
+      this.loadingStatus = `Loading ${filename}...`
+      
+      this.loadedAssets++
+      this.updateLoadingProgress()
+      
+      // Small delay to show progress
+      await this.delay(200)
+    }
+  }
+
+  /**
+   * Load fonts (simulate font loading)
+   */
+  private async loadFonts(): Promise<void> {
+    this.loadingStatus = 'Initializing fonts...'
+    
+    // Fonts are already loaded through CSS, just simulate the process
+    await this.delay(300)
+    
+    console.log('✅ Fonts initialized')
+  }
+
+  /**
+   * Update loading progress based on loaded assets
+   */
+  private updateLoadingProgress(): void {
+    this.loadingProgress = (this.loadedAssets / this.assetsToLoad.length) * 100
+  }
+
+  /**
+   * Complete the loading process and transition to menu
+   */
+  private async completeLoading(): Promise<void> {
+    console.log('🎯 Loading complete - transitioning to menu')
+    this.gameState.setState(GameStateType.MENU)
+    
+    // Resume audio context on user interaction (required by browsers)
+    await this.audioManager.resumeContext()
+    
+    // Start menu music
+    this.playMenuMusic()
+  }
+
+  /**
+   * Utility method for delays
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+}

@@ -1,7 +1,11 @@
 {
   "frames": {
-    "ball_normal":       { "x": 0,   "y": 0,   "w": 64,  "h": 64 }
+    "ball_normal":       { "x": 0,   "y": 0,   "w": 64,  "h": 64 },
+    "bar_normal":        { "x": 69,  "y": 0,   "w": 128,  "h": 32},
+    "ball_whole_normal": { "x": 71,   "y": 35,  "w": 123,  "h": 119},
+    "ball_whole_powerup": { "x": 196,   "y": 34,  "w": 119,  "h": 119}
   },
+
   "meta": {
     "image": "sprite_atlas.png",
     "size": { "w": 512, "h": 512 },

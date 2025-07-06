@@ -31,6 +31,7 @@ export class AudioManager {
   private soundEffects: Map<string, SoundEffect> = new Map()
   private loadedSounds: Map<string, AudioBuffer> = new Map()
   private currentMusic: AudioBufferSourceNode | null = null
+  private currentMusicGain: GainNode | null = null
   private isInitialized: boolean = false
 
   constructor() {
@@ -446,4 +447,143 @@ export class AudioManager {
   public isAvailable(): boolean {
     return this.isInitialized && this.config.enabled
   }
-} 
+
+  /**
+   * Load an MP3 file from the public/assets/audio folder
+   */
+  public async loadMusic(filename: string): Promise<AudioBuffer | null> {
+    if (!this.audioContext) return null
+
+    try {
+      const response = await fetch(`/assets/audio/${filename}`)
+      if (!response.ok) {
+        throw new Error(`Failed to load ${filename}: ${response.status}`)
+      }
+
+      const arrayBuffer = await response.arrayBuffer()
+      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer)
+      
+      // Cache the loaded music
+      this.loadedSounds.set(filename, audioBuffer)
+      
+      console.log(`🎵 Loaded music: ${filename}`)
+      return audioBuffer
+    } catch (error) {
+      console.error(`❌ Error loading music ${filename}:`, error)
+      return null
+    }
+  }
+
+  /**
+   * Play background music
+   */
+  public async playMusic(filename: string, loop: boolean = true, volume: number = 1.0): Promise<void> {
+    if (!this.config.enabled || !this.audioContext || !this.isInitialized) return
+
+    // Stop current music if playing
+    this.stopMusic()
+
+    try {
+      // Load music if not already cached
+      let audioBuffer = this.loadedSounds.get(filename)
+      if (!audioBuffer) {
+        const loadedBuffer = await this.loadMusic(filename)
+        if (!loadedBuffer) return
+        audioBuffer = loadedBuffer
+      }
+
+      // Create source and gain nodes
+      const source = this.audioContext.createBufferSource()
+      const gainNode = this.audioContext.createGain()
+
+      source.buffer = audioBuffer
+      source.loop = loop
+      gainNode.gain.value = volume
+
+      // Connect nodes
+      source.connect(gainNode)
+      gainNode.connect(this.musicGain!)
+
+      // Store references for later control
+      this.currentMusic = source
+      this.currentMusicGain = gainNode
+
+      // Start playing
+      source.start()
+
+      // Handle music ending (for non-looping tracks)
+      if (!loop) {
+        source.addEventListener('ended', () => {
+          this.currentMusic = null
+          this.currentMusicGain = null
+        })
+      }
+
+      console.log(`🎵 Playing music: ${filename} (loop: ${loop})`)
+    } catch (error) {
+      console.error(`❌ Error playing music ${filename}:`, error)
+    }
+  }
+
+  /**
+   * Stop current background music
+   */
+  public stopMusic(): void {
+    if (this.currentMusic) {
+      try {
+        this.currentMusic.stop()
+        this.currentMusic.disconnect()
+        if (this.currentMusicGain) {
+          this.currentMusicGain.disconnect()
+        }
+      } catch (error) {
+        // Ignore errors when stopping already stopped music
+      }
+      this.currentMusic = null
+      this.currentMusicGain = null
+      console.log('🔇 Music stopped')
+    }
+  }
+
+  /**
+   * Fade out current music and optionally start new music
+   */
+  public async fadeToMusic(newFilename: string | null = null, fadeTime: number = 1.0): Promise<void> {
+    if (!this.currentMusicGain || !this.audioContext) {
+      if (newFilename) {
+        await this.playMusic(newFilename)
+      }
+      return
+    }
+
+    // Fade out current music
+    const fadeSteps = 60 // 60 steps for smooth fade
+    const fadeInterval = (fadeTime * 1000) / fadeSteps
+    const volumeStep = this.currentMusicGain.gain.value / fadeSteps
+
+    for (let i = 0; i < fadeSteps; i++) {
+      setTimeout(() => {
+        if (this.currentMusicGain) {
+          this.currentMusicGain.gain.value = Math.max(0, this.currentMusicGain.gain.value - volumeStep)
+        }
+      }, i * fadeInterval)
+    }
+
+    // Stop current music after fade
+    setTimeout(() => {
+      this.stopMusic()
+      
+      // Start new music if specified
+      if (newFilename) {
+        this.playMusic(newFilename)
+      }
+    }, fadeTime * 1000)
+  }
+
+  /**
+   * Check if music is currently playing
+   */
+  public isMusicPlaying(): boolean {
+    return this.currentMusic !== null
+  }
+}
