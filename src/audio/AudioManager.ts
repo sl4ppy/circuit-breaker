@@ -455,7 +455,7 @@ export class AudioManager {
     if (!this.audioContext) return null
 
     try {
-      const response = await fetch(`/assets/audio/${filename}`)
+      const response = await fetch(`./assets/audio/${filename}`)
       if (!response.ok) {
         throw new Error(`Failed to load ${filename}: ${response.status}`)
       }
