@@ -30,38 +30,64 @@ export class FontManager {
     try {
       // Check if fonts are available using CSS Font Loading API
       if ('fonts' in document) {
-        // Load Cyberpunks font family
-        const cyberpunksRegular = new FontFace('Cyberpunks', 'url("/assets/fonts/Cyberpunks.otf")')
-        const cyberpunksItalic = new FontFace('Cyberpunks', 'url("/assets/fonts/Cyberpunks Italic.otf")', { style: 'italic' })
+        // Create font faces with better error handling
+        const fontPromises: Promise<FontFace>[] = []
         
-        // Load Interceptor font family
-        const interceptorRegular = new FontFace('Interceptor', 'url("/assets/fonts/Interceptor.otf")')
-        const interceptorItalic = new FontFace('Interceptor', 'url("/assets/fonts/Interceptor Italic.otf")', { style: 'italic' })
-        const interceptorBold = new FontFace('Interceptor', 'url("/assets/fonts/Interceptor Bold.otf")', { weight: 'bold' })
-        const interceptorBoldItalic = new FontFace('Interceptor', 'url("/assets/fonts/Interceptor Bold Italic.otf")', { weight: 'bold', style: 'italic' })
+        // Load Cyberpunks font family (using relative paths for GitHub Pages compatibility)
+        try {
+          const cyberpunksRegular = new FontFace('Cyberpunks', 'url("./assets/fonts/Cyberpunks.otf")')
+          const cyberpunksItalic = new FontFace('Cyberpunks', 'url("./assets/fonts/Cyberpunks Italic.otf")', { style: 'italic' })
+          fontPromises.push(cyberpunksRegular.load(), cyberpunksItalic.load())
+        } catch (e) {
+          console.log('⚠️ Cyberpunks font creation failed:', e)
+        }
         
-        await Promise.all([
-          cyberpunksRegular.load(),
-          cyberpunksItalic.load(),
-          interceptorRegular.load(),
-          interceptorItalic.load(),
-          interceptorBold.load(),
-          interceptorBoldItalic.load()
-        ])
+        // Load Interceptor font family (using relative paths for GitHub Pages compatibility) 
+        try {
+          const interceptorRegular = new FontFace('Interceptor', 'url("./assets/fonts/Interceptor.otf")')
+          const interceptorItalic = new FontFace('Interceptor', 'url("./assets/fonts/Interceptor Italic.otf")', { style: 'italic' })
+          const interceptorBold = new FontFace('Interceptor', 'url("./assets/fonts/Interceptor Bold.otf")', { weight: 'bold' })
+          const interceptorBoldItalic = new FontFace('Interceptor', 'url("./assets/fonts/Interceptor Bold Italic.otf")', { weight: 'bold', style: 'italic' })
+          fontPromises.push(interceptorRegular.load(), interceptorItalic.load(), interceptorBold.load(), interceptorBoldItalic.load())
+        } catch (e) {
+          console.log('⚠️ Interceptor font creation failed:', e)
+        }
         
-        // Add fonts to document
-        document.fonts.add(cyberpunksRegular)
-        document.fonts.add(cyberpunksItalic)
-        document.fonts.add(interceptorRegular)
-        document.fonts.add(interceptorItalic)
-        document.fonts.add(interceptorBold)
-        document.fonts.add(interceptorBoldItalic)
-        
-        this.fontsLoaded = true
-        console.log('🎨 Custom cyberpunk fonts loaded successfully')
+        if (fontPromises.length > 0) {
+          // Load fonts with individual error handling
+          const results = await Promise.allSettled(fontPromises)
+          
+          let loadedCount = 0
+          results.forEach((result, index) => {
+            if (result.status === 'fulfilled') {
+              try {
+                document.fonts.add(result.value)
+                loadedCount++
+              } catch (e) {
+                console.log(`⚠️ Failed to add font ${index} to document:`, e)
+              }
+            } else {
+              console.log(`⚠️ Font ${index} failed to load:`, result.reason)
+            }
+          })
+          
+          if (loadedCount > 0) {
+            this.fontsLoaded = true
+            console.log(`🎨 Loaded ${loadedCount}/${fontPromises.length} custom fonts successfully`)
+          } else {
+            this.fontsLoaded = false
+            console.log('⚠️ No custom fonts loaded, using fallbacks')
+          }
+        } else {
+          this.fontsLoaded = false
+          console.log('⚠️ No fonts could be created, using fallbacks')
+        }
+      } else {
+        this.fontsLoaded = false
+        console.log('⚠️ Font Loading API not available, using fallbacks')
       }
     } catch (error) {
-      console.log('⚠️ Custom fonts failed to load, using fallbacks:', error)
+      console.log('⚠️ Font loading completely failed, using fallbacks:', error)
       this.fontsLoaded = false
     }
   }

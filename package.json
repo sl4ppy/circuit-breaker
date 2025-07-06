@@ -1,6 +1,6 @@
 {
   "name": "circuit-breaker",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "A neon cyberpunk pinball game with realistic physics, level progression, and dynamic audio",
   "type": "module",
   "scripts": {

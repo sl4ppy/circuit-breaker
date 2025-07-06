@@ -3,8 +3,8 @@
 /* Custom Cyberpunk Fonts */
 @font-face {
   font-family: 'Cyberpunks';
-  src: url('/assets/fonts/Cyberpunks.otf') format('opentype'),
-       url('/assets/fonts/Cyberpunks.ttf') format('truetype');
+  src: url('./assets/fonts/Cyberpunks.otf') format('opentype'),
+       url('./assets/fonts/Cyberpunks.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap; /* Ensures text is visible during font load */
@@ -12,8 +12,8 @@
 
 @font-face {
   font-family: 'Cyberpunks';
-  src: url('/assets/fonts/Cyberpunks Italic.otf') format('opentype'),
-       url('/assets/fonts/Cyberpunks Italic.ttf') format('truetype');
+  src: url('./assets/fonts/Cyberpunks Italic.otf') format('opentype'),
+       url('./assets/fonts/Cyberpunks Italic.ttf') format('truetype');
   font-weight: normal;
   font-style: italic;
   font-display: swap;
@@ -21,7 +21,7 @@
 
 @font-face {
   font-family: 'Interceptor';
-  src: url('/assets/fonts/Interceptor.otf') format('opentype');
+  src: url('./assets/fonts/Interceptor.otf') format('opentype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -29,7 +29,7 @@
 
 @font-face {
   font-family: 'Interceptor';
-  src: url('/assets/fonts/Interceptor Italic.otf') format('opentype');
+  src: url('./assets/fonts/Interceptor Italic.otf') format('opentype');
   font-weight: normal;
   font-style: italic;
   font-display: swap;
@@ -37,7 +37,7 @@
 
 @font-face {
   font-family: 'Interceptor';
-  src: url('/assets/fonts/Interceptor Bold.otf') format('opentype');
+  src: url('./assets/fonts/Interceptor Bold.otf') format('opentype');
   font-weight: bold;
   font-style: normal;
   font-display: swap;
@@ -45,7 +45,7 @@
 
 @font-face {
   font-family: 'Interceptor';
-  src: url('/assets/fonts/Interceptor Bold Italic.otf') format('opentype');
+  src: url('./assets/fonts/Interceptor Bold Italic.otf') format('opentype');
   font-weight: bold;
   font-style: italic;
   font-display: swap;

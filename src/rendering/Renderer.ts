@@ -25,30 +25,52 @@ export class Renderer {
    */
   private async loadSprites(): Promise<void> {
     try {
-      // Load ball sprite
+      // Load ball sprite (using relative paths for GitHub Pages compatibility)
       this.ballSprite = new Image()
-      this.ballSprite.src = '/assets/sprites/ball_01.png'
+      this.ballSprite.src = './assets/sprites/ball_01.png'
       
-      // Load background sprite
+      // Load background sprite (using relative paths for GitHub Pages compatibility)
       this.backgroundSprite = new Image()
-      this.backgroundSprite.src = '/assets/sprites/playfield_background_02.png'
+      this.backgroundSprite.src = './assets/sprites/playfield_background_02.png'
       
-      // Wait for both images to load
-      await Promise.all([
-        new Promise((resolve, reject) => {
-          this.ballSprite!.onload = resolve
-          this.ballSprite!.onerror = reject
+      // Wait for both images to load with individual error handling
+      const spritePromises = [
+        new Promise<string>((resolve, reject) => {
+          this.ballSprite!.onload = () => resolve('ball')
+          this.ballSprite!.onerror = (e) => reject({ sprite: 'ball', error: e })
         }),
-        new Promise((resolve, reject) => {
-          this.backgroundSprite!.onload = resolve
-          this.backgroundSprite!.onerror = reject
+        new Promise<string>((resolve, reject) => {
+          this.backgroundSprite!.onload = () => resolve('background')
+          this.backgroundSprite!.onerror = (e) => reject({ sprite: 'background', error: e })
         })
-      ])
+      ]
       
-      this.spritesLoaded = true
-      Debug.log('🎨 Ball and background sprites loaded successfully')
+      const results = await Promise.allSettled(spritePromises)
+      
+      let loadedCount = 0
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          loadedCount++
+          Debug.log(`✅ ${result.value} sprite loaded successfully`)
+        } else {
+          const { sprite, error } = result.reason
+          Debug.log(`❌ Failed to load ${sprite} sprite:`, error)
+        }
+      })
+      
+      // Consider sprites loaded if at least one loads (background is optional)
+      this.spritesLoaded = loadedCount > 0
+      
+      if (loadedCount === 2) {
+        Debug.log('🎨 All sprites loaded successfully')
+      } else if (loadedCount === 1) {
+        Debug.log('⚠️ Some sprites loaded, game will use fallbacks')
+      } else {
+        Debug.log('❌ No sprites loaded, game will use fallbacks')
+      }
+      
     } catch (error) {
-      Debug.log('❌ Failed to load sprites:', error)
+      Debug.log('❌ Sprite loading system failed:', error)
       this.spritesLoaded = false
     }
   }
