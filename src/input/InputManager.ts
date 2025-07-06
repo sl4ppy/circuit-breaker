@@ -111,6 +111,22 @@ export class InputManager {
   }
 
   /**
+   * Check if a specific key was just pressed (not held) by key code
+   */
+  public isKeyJustPressed(keyCode: string): boolean {
+    return this.inputState.keys[keyCode] && !this.previousKeys[keyCode]
+  }
+
+  /**
+   * Check if mouse was just clicked (not held)
+   */
+  public isMouseJustPressed(): boolean {
+    return this.inputState.mouse.isDown && !this.previousMouseState
+  }
+
+  private previousMouseState: boolean = false
+
+  /**
    * Update input state (called each frame)
    */
   public update(): void {
@@ -156,6 +172,8 @@ export class InputManager {
   public endFrame(): void {
     // Store previous key state for just-pressed detection
     this.previousKeys = { ...this.inputState.keys }
+    // Store previous mouse state for just-pressed detection
+    this.previousMouseState = this.inputState.mouse.isDown
   }
 
   /**

@@ -16,6 +16,7 @@ export interface GameStateData {
   lives: number
   isPaused: boolean
   isGameOver: boolean
+  debugMode: boolean
 }
 
 export class GameState {
@@ -25,7 +26,8 @@ export class GameState {
     score: 0,
     lives: 3,
     isPaused: false,
-    isGameOver: false
+    isGameOver: false,
+    debugMode: false
   }
 
   constructor() {
@@ -91,6 +93,29 @@ export class GameState {
   }
 
   /**
+   * Check if debug mode is enabled
+   */
+  public isDebugMode(): boolean {
+    return this.stateData.debugMode
+  }
+
+  /**
+   * Toggle debug mode
+   */
+  public toggleDebugMode(): void {
+    this.stateData.debugMode = !this.stateData.debugMode
+    console.log(`🐛 Debug mode ${this.stateData.debugMode ? 'enabled' : 'disabled'}`)
+  }
+
+  /**
+   * Set debug mode
+   */
+  public setDebugMode(enabled: boolean): void {
+    this.stateData.debugMode = enabled
+    console.log(`🐛 Debug mode ${enabled ? 'enabled' : 'disabled'}`)
+  }
+
+  /**
    * Reset game state to initial values
    */
   public reset(): void {
@@ -100,7 +125,8 @@ export class GameState {
       score: 0,
       lives: 3,
       isPaused: false,
-      isGameOver: false
+      isGameOver: false,
+      debugMode: false
     }
     console.log('🔄 Game state reset')
   }

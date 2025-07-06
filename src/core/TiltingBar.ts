@@ -192,5 +192,15 @@ export class TiltingBar {
     }
   }
 
+  /**
+   * Reset the tilting bar to its starting position (both sides at bottom)
+   */
+  public reset(): void {
+    this.leftSideHeight = this.maxSideHeight  // Reset to bottom position (590)
+    this.rightSideHeight = this.maxSideHeight // Reset to bottom position (590)
+    this.rotation = 0 // Reset rotation to horizontal
+    this.targetRotation = 0 // Reset target rotation
+    console.log('🔄 Tilting bar reset to starting position')
+  }
 
 } 

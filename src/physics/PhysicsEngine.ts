@@ -73,6 +73,10 @@ export class PhysicsEngine {
   
   // Audio callback for collision sounds
   private audioCallback: ((velocity: number, type: string) => void) | null = null
+  
+  // Audio cooldown timers to prevent rapid-fire collision sounds (in milliseconds)
+  private audioTimeouts: Map<string, number> = new Map()
+  private readonly AUDIO_COOLDOWN_MS = 150 // 150ms cooldown between same collision type sounds
 
   constructor() {
     Debug.log('⚡ Advanced PhysicsEngine initialized with Verlet integration')
@@ -90,6 +94,23 @@ export class PhysicsEngine {
    */
   public setAudioCallback(callback: (velocity: number, type: string) => void): void {
     this.audioCallback = callback
+  }
+
+  /**
+   * Play audio with cooldown to prevent rapid-fire sounds
+   */
+  private playAudioWithCooldown(velocity: number, type: string, objectId: string): void {
+    if (!this.audioCallback) return
+    
+    const now = Date.now()
+    const cooldownKey = `${objectId}_${type}`
+    const lastAudioTime = this.audioTimeouts.get(cooldownKey) || 0
+    
+    // Only play if enough time has passed since last audio of this type for this object
+    if (now - lastAudioTime >= this.AUDIO_COOLDOWN_MS) {
+      this.audioCallback(velocity, type)
+      this.audioTimeouts.set(cooldownKey, now)
+    }
   }
 
   /**
@@ -548,11 +569,9 @@ export class PhysicsEngine {
           obj.previousPosition.x = obj.position.x - reflectedVelocity.x
           obj.previousPosition.y = obj.position.y - reflectedVelocity.y
           
-          // Play bounce sound based on collision velocity
-          if (this.audioCallback) {
-            const collisionVelocity = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
-            this.audioCallback(collisionVelocity, 'bounce')
-          }
+          // Play bounce sound based on collision velocity (with cooldown)
+          const collisionVelocity = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
+          this.playAudioWithCooldown(collisionVelocity, 'bounce', obj.id)
         } else {
           // Ball is resting on or gently touching the bar - apply rolling physics
           this.applyRollingPhysics(obj, barTangent, barNormal, velocityAlongTangent, this.deltaTime)
@@ -645,15 +664,11 @@ export class PhysicsEngine {
           obj.previousPosition.y = obj.position.y + velocity.y * obj.restitution
           obj.previousPosition.x = obj.position.x - velocity.x * 0.8 // Floor friction
           
-          // Play bounce sound for floor collision
-          if (this.audioCallback) {
-            const collisionVelocity = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
-            this.audioCallback(collisionVelocity, 'bounce')
-          }
+          // Removed audio for floor collision - no sound on boundary hits
         }
       }
       
-      // Side walls
+      // Left wall collision
       if (obj.position.x - obj.radius < 0) {
         obj.position.x = obj.radius
         const velocity = {
@@ -663,13 +678,12 @@ export class PhysicsEngine {
         if (velocity.x < 0) {
           obj.previousPosition.x = obj.position.x + velocity.x * obj.restitution
           
-          // Play bounce sound for wall collision
-          if (this.audioCallback) {
-            const collisionVelocity = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
-            this.audioCallback(collisionVelocity, 'bounce')
-          }
+          // Removed audio for wall collision - no sound on boundary hits
         }
-      } else if (obj.position.x + obj.radius > this.bounds.width) {
+      }
+      
+      // Right wall collision
+      if (obj.position.x + obj.radius > this.bounds.width) {
         obj.position.x = this.bounds.width - obj.radius
         const velocity = {
           x: obj.position.x - obj.previousPosition.x,
@@ -678,11 +692,7 @@ export class PhysicsEngine {
         if (velocity.x > 0) {
           obj.previousPosition.x = obj.position.x + velocity.x * obj.restitution
           
-          // Play bounce sound for wall collision
-          if (this.audioCallback) {
-            const collisionVelocity = Math.sqrt(velocity.x * velocity.x + velocity.y * velocity.y)
-            this.audioCallback(collisionVelocity, 'bounce')
-          }
+          // Removed audio for wall collision - no sound on boundary hits
         }
       }
     }

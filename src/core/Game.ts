@@ -9,6 +9,7 @@ import { TiltingBar } from './TiltingBar'
 import { InputManager } from '../input/InputManager'
 import { LevelManager, Level } from './Level'
 import { AudioManager } from '../audio/AudioManager'
+import { fontManager } from '../utils/FontManager'
 
 export class Game {
   private gameState: GameState
@@ -21,6 +22,19 @@ export class Game {
   private audioManager: AudioManager
   private currentLevel: Level | null = null
   private isRunning: boolean = false
+  private levelCompletionHandled: boolean = false
+  
+  // Hole animation state
+  private isAnimatingHoleFall: boolean = false
+  private holeAnimationState: {
+    ballId: string
+    holePosition: { x: number; y: number }
+    startTime: number
+    duration: number
+    startPosition: { x: number; y: number }
+    scale: number
+    opacity: number
+  } | null = null
 
   constructor() {
     this.gameState = new GameState()
@@ -42,11 +56,11 @@ export class Game {
   }
 
   /**
-   * Initialize the game and all systems
+   * Initialize the game
    */
   public async init(): Promise<void> {
     try {
-      console.log('🚀 Initializing Circuit Breaker...')
+      console.log('🎮 Initializing Circuit Breaker...')
       
       // Initialize renderer with canvas
       const canvas = document.getElementById('game-canvas') as HTMLCanvasElement
@@ -54,6 +68,9 @@ export class Game {
         throw new Error('Canvas element not found')
       }
       this.renderer.init(canvas)
+      
+      // Preload custom fonts
+      await fontManager.preloadFonts()
       
       // Initialize physics engine with realistic pinball settings
       this.physicsEngine.setGravity(0, 520) // Stronger gravity for heavier pinball
@@ -63,7 +80,8 @@ export class Game {
       
       // Set up physics audio callback for collision sounds
       this.physicsEngine.setAudioCallback((velocity: number, type: string) => {
-        if (type === 'bounce') {
+        // Only play collision sounds when actually playing the game
+        if (this.gameState.isPlaying() && type === 'bounce') {
           this.audioManager.playBounceSound(velocity)
         }
       })
@@ -93,22 +111,21 @@ export class Game {
       })
       
       this.physicsEngine.addObject(ball)
-
-      // Disable physics debugging for performance
-      this.physicsEngine.setDebug(false)
+      
+      // Sync physics engine debug mode with game state debug mode
+      this.physicsEngine.setDebug(this.gameState.isDebugMode())
       
       // Load the first level
       this.currentLevel = this.levelManager.loadLevel(1)
       if (this.currentLevel) {
         this.currentLevel.start()
+        this.levelCompletionHandled = false // Initialize completion flag
         console.log('🎯 Level 1 loaded and started')
       }
       
-      // TODO: Initialize remaining systems
-      // - Audio system
-      
       this.isRunning = true
       console.log('✅ Circuit Breaker initialized successfully')
+      
     } catch (error) {
       console.error('❌ Failed to initialize Circuit Breaker:', error)
       throw error
@@ -136,31 +153,78 @@ export class Game {
     // Update input
     this.inputManager.update()
     
-    // Check for start key press to place ball on bar
-    if (this.inputManager.isActionJustPressed('start')) {
-      console.log('🎯 SPACE pressed - placing ball on bar')
-      this.placeBallOnBar()
+    // Handle menu input - start new game when clicking or pressing space
+    if (this.gameState.isState(GameStateType.MENU)) {
+      if (this.inputManager.isActionJustPressed('start') || this.inputManager.isMouseJustPressed()) {
+        console.log('🎮 Starting new game...')
+        this.startNewGame()
+        
+        // Resume audio context on user interaction (required by browsers)
+        this.audioManager.resumeContext()
+        
+        // Play UI click sound
+        this.audioManager.playSound('ui_click')
+      }
       
-      // Resume audio context on user interaction (required by browsers)
-      this.audioManager.resumeContext()
-      
-      // Play UI click sound
-      this.audioManager.playSound('ui_click')
+      // Handle debug mode toggle
+      if (this.inputManager.isKeyJustPressed('KeyD')) {
+        this.gameState.toggleDebugMode()
+        
+        // Update physics engine debug mode to match
+        this.physicsEngine.setDebug(this.gameState.isDebugMode())
+        
+        // Play UI click sound
+        this.audioManager.playSound('ui_click')
+      }
     }
     
-    // Update tilting bar based on independent side controls (absolute movement)
-    const leftSideInput = this.inputManager.getLeftSideInput()
-    const rightSideInput = this.inputManager.getRightSideInput()
+    // Handle game over input - return to menu when clicking or pressing space
+    if (this.gameState.isState(GameStateType.GAME_OVER)) {
+      if (this.inputManager.isActionJustPressed('start') || this.inputManager.isMouseJustPressed()) {
+        console.log('🏠 Returning to menu...')
+        this.gameState.reset()
+        
+        // Play UI click sound
+        this.audioManager.playSound('ui_click')
+      }
+    }
     
-    this.tiltingBar.moveLeftSide(leftSideInput)
-    this.tiltingBar.moveRightSide(rightSideInput)
-    this.tiltingBar.update(deltaTime / 1000) // Convert to seconds
-    
-    // Update current level
-    if (this.currentLevel) {
-      this.currentLevel.update(deltaTime)
-      this.checkCollisions()
-      this.checkWinLoseConditions()
+    // Only process gameplay logic when actually playing
+    if (this.gameState.isPlaying()) {
+      // Update hole animation if active
+      if (this.isAnimatingHoleFall) {
+        this.updateHoleAnimation(deltaTime)
+      }
+      
+      // Check for start key press to place ball on bar
+      if (this.inputManager.isActionJustPressed('start')) {
+        console.log('🎯 SPACE pressed - placing ball on bar')
+        this.placeBallOnBar()
+        
+        // Resume audio context on user interaction (required by browsers)
+        this.audioManager.resumeContext()
+        
+        // Play UI click sound
+        this.audioManager.playSound('ui_click')
+      }
+      
+      // Update tilting bar based on independent side controls (absolute movement)
+      const leftSideInput = this.inputManager.getLeftSideInput()
+      const rightSideInput = this.inputManager.getRightSideInput()
+      
+      this.tiltingBar.moveLeftSide(leftSideInput)
+      this.tiltingBar.moveRightSide(rightSideInput)
+      this.tiltingBar.update(deltaTime / 1000) // Convert to seconds
+      
+      // Update current level
+      if (this.currentLevel) {
+        this.currentLevel.update(deltaTime)
+        // Only check collisions if not animating
+        if (!this.isAnimatingHoleFall) {
+          this.checkCollisions()
+          this.checkWinLoseConditions()
+        }
+      }
     }
     
     // End frame - update previous input state for next frame
@@ -230,37 +294,69 @@ export class Game {
     if (this.currentLevel) {
       const levelData = this.currentLevel.getLevelData()
       
-      // Draw obstacles
-      levelData.obstacles.forEach(obstacle => {
-        this.renderer.drawObstacle(obstacle)
+      // Draw holes
+      levelData.holes.forEach(hole => {
+        // Check if this goal hole has been completed
+        const isCompleted = hole.isGoal && this.currentLevel ? this.currentLevel.isGoalCompleted(hole.id) : false
+        this.renderer.drawHole(hole, isCompleted)
       })
       
-      // Draw target ports
-      levelData.targetPorts.forEach(port => {
-        this.renderer.drawTargetPort(port)
-      })
-      
-      // Draw level info
+      // Draw essential UI (always visible)
       const ctx = this.renderer.getContext()
       if (ctx) {
         ctx.fillStyle = '#00ffff'
-        ctx.font = '12px monospace'
+        fontManager.setFont(ctx, 'primary', 12)
         ctx.textAlign = 'left'
         ctx.fillText(`Level: ${levelData.id} - ${levelData.name}`, 10, 20)
-        ctx.fillText(`Progress: ${Math.round(this.currentLevel.getProgress() * 100)}%`, 10, 35)
-        ctx.fillText(`Score: ${this.gameState.getStateData().score}`, 10, 50)
+        ctx.fillText(`Score: ${this.gameState.getStateData().score}`, 10, 35)
+        ctx.fillText(`Lives: ${this.gameState.getStateData().lives}`, 10, 50)
+        
+        // Debug info (only when debug mode is enabled)
+        if (this.gameState.isDebugMode()) {
+          ctx.fillText(`Progress: ${Math.round(this.currentLevel.getProgress() * 100)}%`, 10, 65)
+          
+          // Show multi-goal progress
+          const completedGoals = this.currentLevel.getCompletedGoals()
+          const requiredGoals = this.currentLevel.getRequiredGoals()
+          ctx.fillText(`Goals: ${completedGoals}/${requiredGoals} completed`, 10, 80)
+          
+          if (completedGoals < requiredGoals) {
+            ctx.fillText(`Goal: Navigate to the glowing goal holes`, 10, 95)
+          } else {
+            ctx.fillText(`Goal: All goals completed! Level complete!`, 10, 95)
+          }
+        }
       }
     }
     
-    // Render input instructions
-    const ctx = this.renderer.getContext()
-    if (ctx) {
-      ctx.fillStyle = '#00ffff'
-      ctx.font = '10px monospace'
-      ctx.textAlign = 'center'
-      ctx.fillText('SPACE: Start | Left: A(up)/Z(down) | Right: ↑(up)/↓(down)', 180, 580)
-      ctx.fillText('Or click and drag mouse to control', 180, 595)
+    // Input instructions (only when debug mode is enabled)
+    if (this.gameState.isDebugMode()) {
+      const ctx = this.renderer.getContext()
+      if (ctx) {
+        ctx.fillStyle = '#00ffff'
+        fontManager.setFont(ctx, 'primary', 10)
+        ctx.textAlign = 'center'
+        ctx.fillText('SPACE: Start | Left: A(up)/Z(down) | Right: ↑(up)/↓(down)', 180, 580)
+        ctx.fillText('Navigate upward to the goal holes - avoid falling into other holes!', 180, 595)
+      }
     }
+  }
+
+  /**
+   * Get hole animation state for rendering
+   */
+  public getHoleAnimationState(): { scale: number; opacity: number } | null {
+    return this.holeAnimationState ? {
+      scale: this.holeAnimationState.scale,
+      opacity: this.holeAnimationState.opacity
+    } : null
+  }
+
+  /**
+   * Check if ball is currently animating into a hole
+   */
+  public getIsAnimatingHoleFall(): boolean {
+    return this.isAnimatingHoleFall
   }
 
   /**
@@ -275,16 +371,16 @@ export class Game {
     const ballPosition = { x: ball.position.x, y: ball.position.y }
     const ballRadius = ball.radius
 
-    // Check obstacle collisions
-    const hitObstacle = this.currentLevel.checkObstacleCollision(ballPosition, ballRadius)
-    if (hitObstacle) {
-      this.handleObstacleCollision(hitObstacle)
+    // Check if ball reached the goal hole
+    if (this.currentLevel.checkGoalReached(ballPosition, ballRadius)) {
+      this.handleGoalReached()
+      return
     }
 
-    // Check target port collisions
-    const hitPort = this.currentLevel.checkTargetPortCollision(ballPosition, ballRadius)
-    if (hitPort) {
-      this.handleTargetPortCollision(hitPort)
+    // Check if ball fell into any hole
+    const hitHole = this.currentLevel.checkHoleCollision(ballPosition, ballRadius)
+    if (hitHole && !hitHole.isGoal) {
+      this.handleHoleCollision(hitHole)
     }
 
     // Check if ball fell off screen
@@ -299,53 +395,62 @@ export class Game {
   private checkWinLoseConditions(): void {
     if (!this.currentLevel) return
 
-    // Check if level is complete
-    if (this.currentLevel.checkLevelComplete()) {
+    // Check if level is complete (only handle once per level)
+    if (this.currentLevel.checkLevelComplete() && !this.levelCompletionHandled) {
+      this.levelCompletionHandled = true
       this.handleLevelComplete()
     }
-
-    // Check if time is up (if there's a time limit)
-    if (this.currentLevel.isTimeUp()) {
-      this.handleTimeUp()
-    }
   }
 
   /**
-   * Handle obstacle collision
+   * Handle ball reaching the goal hole
    */
-  private handleObstacleCollision(obstacle: any): void {
-    console.log(`💥 Ball hit obstacle: ${obstacle.id}`)
-    
-    // Apply damage or effects based on obstacle type
-    if (obstacle.type === 'electrical_hazard') {
-      console.log('⚡ Electrical damage!')
-      // Play electrical zap sound
-      this.audioManager.playSound('zap')
-      // Reset ball position
-      this.placeBallOnBar()
-    } else if (obstacle.type === 'hole') {
-      console.log('🕳️ Ball fell into hole!')
-      this.handleBallFallOff()
-    } else if (obstacle.type === 'barrier') {
-      // Play bounce sound for barrier collision
-      this.audioManager.playBounceSound(300) // Medium velocity bounce
-    }
-  }
+  private handleGoalReached(): void {
+    if (!this.currentLevel) return
 
-  /**
-   * Handle target port collision
-   */
-  private handleTargetPortCollision(port: any): void {
-    console.log(`🎯 Ball reached target port: ${port.id}`)
+    console.log('🎯 Goal reached!')
     
     // Play target activation sound
     this.audioManager.playSound('target')
     
-    // Add score
+    // Add bonus score for reaching goal
     const currentScore = this.gameState.getStateData().score
-    this.gameState.updateStateData({ score: currentScore + port.points })
+    this.gameState.updateStateData({ score: currentScore + 500 })
     
-    console.log(`💰 Score increased by ${port.points}`)
+    console.log('💰 Goal bonus: 500 points')
+    
+    // Check if all goals are completed
+    const completedGoals = this.currentLevel.getCompletedGoals()
+    const requiredGoals = this.currentLevel.getRequiredGoals()
+    
+    console.log(`🎯 Goals completed: ${completedGoals}/${requiredGoals}`)
+    
+    // Only mark level as complete if all goals are reached
+    if (this.currentLevel.areAllGoalsCompleted()) {
+      console.log('🎉 All goals completed! Level complete!')
+      // Level completion will be handled by checkWinLoseConditions
+    } else {
+      console.log(`🔄 Continue playing! ${requiredGoals - completedGoals} goal(s) remaining`)
+      
+      // Reset tilting bar to starting position
+      this.tiltingBar.reset()
+      
+      // Reset ball to starting position on the bar
+      this.placeBallOnBar()
+    }
+  }
+
+  /**
+   * Handle ball falling into a hole
+   */
+  private handleHoleCollision(hole: any): void {
+    console.log(`🕳️ Ball fell into hole: ${hole.id}`)
+    
+    // Play falling sound
+    this.audioManager.playSound('zap') // Use zap sound for falling into holes
+    
+    // Start hole animation instead of immediately resetting
+    this.startHoleAnimation('game-ball', hole.position)
   }
 
   /**
@@ -359,6 +464,11 @@ export class Game {
     if (currentLives > 1) {
       this.gameState.updateStateData({ lives: currentLives - 1 })
       console.log(`💔 Lives remaining: ${currentLives - 1}`)
+      
+      // Reset tilting bar to starting position
+      this.tiltingBar.reset()
+      
+      // Reset ball to starting position on the bar
       this.placeBallOnBar()
     } else {
       this.handleGameOver()
@@ -413,7 +523,14 @@ export class Game {
     if (this.currentLevel) {
       this.currentLevel.start()
       this.gameState.updateStateData({ currentLevel: levelId })
+      this.levelCompletionHandled = false // Reset completion flag for new level
+      
+      // Reset tilting bar to starting position
+      this.tiltingBar.reset()
+      
+      // Reset ball to starting position on the bar
       this.placeBallOnBar()
+      
       console.log(`🎯 Level ${levelId} loaded and started`)
     }
   }
@@ -424,6 +541,17 @@ export class Game {
   private handleGameOver(): void {
     console.log('💀 Game Over!')
     this.gameState.setState(GameStateType.GAME_OVER)
+    
+    // Play game over sound
+    this.audioManager.playSound('game_over')
+    
+    // Auto-return to menu after 5 seconds if user doesn't interact
+    setTimeout(() => {
+      if (this.gameState.isState(GameStateType.GAME_OVER)) {
+        console.log('🏠 Auto-returning to menu...')
+        this.gameState.reset()
+      }
+    }, 5000)
   }
 
   /**
@@ -431,7 +559,12 @@ export class Game {
    */
   private handleGameComplete(): void {
     console.log('🎊 Game completed! All levels finished!')
-    this.gameState.setState(GameStateType.LEVEL_COMPLETE)
+    
+    // Show completion message briefly, then return to main menu
+    setTimeout(() => {
+      console.log('🏠 Returning to main menu...')
+      this.gameState.reset()
+    }, 2000) // 2 second delay to show completion
   }
 
   /**
@@ -471,5 +604,119 @@ export class Game {
    */
   public isGameRunning(): boolean {
     return this.isRunning && this.gameLoop.isGameLoopRunning()
+  }
+
+  /**
+   * Start a new game (used when clicking from menu)
+   */
+  private startNewGame(): void {
+    console.log('🎮 Starting new game...')
+    
+    // Reset game state
+    this.gameState.setState(GameStateType.PLAYING)
+    this.gameState.updateStateData({
+      currentLevel: 1,
+      score: 0,
+      lives: 3
+    })
+    
+    // Load first level
+    this.currentLevel = this.levelManager.loadLevel(1)
+    if (this.currentLevel) {
+      this.currentLevel.start()
+      this.levelCompletionHandled = false
+      console.log('🎯 Level 1 loaded and started')
+    }
+    
+    // Reset tilting bar to starting position
+    this.tiltingBar.reset()
+    
+    // Reset ball to starting position on the bar
+    this.placeBallOnBar()
+    
+    console.log('🚀 New game started successfully!')
+  }
+
+  /**
+   * Update hole animation if active
+   */
+  private updateHoleAnimation(deltaTime: number): void {
+    if (!this.holeAnimationState) return
+
+    const elapsed = Date.now() - this.holeAnimationState.startTime
+    const progress = Math.min(elapsed / this.holeAnimationState.duration, 1)
+
+    // Easing function for more natural animation (starts fast, slows down)
+    const easedProgress = 1 - Math.pow(1 - progress, 3)
+
+    // Update animation properties
+    this.holeAnimationState.scale = 1 - easedProgress * 0.9 // Scale down to 10% of original (more dramatic)
+    this.holeAnimationState.opacity = 1 - easedProgress * 0.7 // Fade to 30% opacity
+
+    // Move ball towards hole center initially, then down behind playfield
+    const ball = this.physicsEngine.getObjects().find(obj => obj.id === this.holeAnimationState?.ballId)
+    if (ball) {
+      const startPos = this.holeAnimationState.startPosition
+      const holePos = this.holeAnimationState.holePosition
+      
+      if (progress < 0.3) {
+        // First 30% of animation: move towards hole center
+        const moveProgress = progress / 0.3
+        ball.position.x = startPos.x + (holePos.x - startPos.x) * moveProgress
+        ball.position.y = startPos.y + (holePos.y - startPos.y) * moveProgress
+      } else {
+        // Remaining 70%: fall straight down behind playfield
+        const fallProgress = (progress - 0.3) / 0.7
+        ball.position.x = holePos.x // Stay at hole center horizontally
+        ball.position.y = holePos.y + fallProgress * 200 // Fall 200 pixels down behind playfield
+      }
+      
+      // Update previous position to prevent physics interference
+      ball.previousPosition.x = ball.position.x
+      ball.previousPosition.y = ball.position.y
+      
+      // Stop ball physics
+      ball.velocity.x = 0
+      ball.velocity.y = 0
+    }
+
+    // Complete animation
+    if (progress >= 1) {
+      this.completeHoleAnimation()
+    }
+  }
+
+  /**
+   * Start hole animation when ball enters a hole
+   */
+  private startHoleAnimation(ballId: string, holePosition: { x: number; y: number }): void {
+    const ball = this.physicsEngine.getObjects().find(obj => obj.id === ballId)
+    if (!ball) return
+
+    console.log(`🎬 Starting hole animation for ball: ${ballId}`)
+    
+    this.isAnimatingHoleFall = true
+    this.holeAnimationState = {
+      ballId: ballId,
+      holePosition: holePosition,
+      startTime: Date.now(),
+      duration: 500, // Faster animation: 500ms instead of 800ms
+      startPosition: { x: ball.position.x, y: ball.position.y },
+      scale: 1,
+      opacity: 1
+    }
+  }
+
+  /**
+   * Complete hole animation and reset ball
+   */
+  private completeHoleAnimation(): void {
+    console.log('🎬 Hole animation complete')
+    
+    this.isAnimatingHoleFall = false
+    this.holeAnimationState = null
+    
+    // Now perform the actual ball reset
+    this.handleBallFallOff()
   }
 } 

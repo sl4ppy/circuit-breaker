@@ -1,5 +1,36 @@
 /* Circuit Breaker - Cyberpunk Styling */
 
+/* Custom Cyberpunk Fonts */
+@font-face {
+  font-family: 'CyberFont';
+  src: url('/assets/fonts/cyber-font.woff2') format('woff2'),
+       url('/assets/fonts/cyber-font.woff') format('woff'),
+       url('/assets/fonts/cyber-font.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap; /* Ensures text is visible during font load */
+}
+
+@font-face {
+  font-family: 'CyberFont';
+  src: url('/assets/fonts/cyber-font-bold.woff2') format('woff2'),
+       url('/assets/fonts/cyber-font-bold.woff') format('woff'),
+       url('/assets/fonts/cyber-font-bold.ttf') format('truetype');
+  font-weight: bold;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'NeonDisplay';
+  src: url('/assets/fonts/neon-display.woff2') format('woff2'),
+       url('/assets/fonts/neon-display.woff') format('woff'),
+       url('/assets/fonts/neon-display.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --neon-cyan: #00ffff;
   --neon-pink: #ff00ff;
@@ -9,6 +40,11 @@
   --dark-gray: #1a1a1a;
   --charcoal: #2a2a2a;
   --deep-black: #000000;
+  
+  /* Font stacks with fallbacks */
+  --font-primary: 'CyberFont', 'Courier New', 'Monaco', 'Consolas', monospace;
+  --font-display: 'NeonDisplay', 'CyberFont', 'Courier New', monospace;
+  --font-mono: 'CyberFont', 'Courier New', 'Monaco', 'Consolas', monospace;
 }
 
 * {
@@ -20,7 +56,7 @@ body {
   padding: 0;
   background: var(--deep-black);
   color: var(--neon-cyan);
-  font-family: 'Courier New', 'Monaco', 'Consolas', monospace;
+  font-family: var(--font-primary);
   overflow: hidden;
   user-select: none;
 }
@@ -45,6 +81,7 @@ body {
   font-size: 24px;
   color: var(--neon-cyan);
   text-shadow: 0 0 10px var(--neon-cyan);
+  font-family: var(--font-primary);
 }
 
 .loading::after {
@@ -64,6 +101,7 @@ h1 {
   font-size: 3rem;
   margin-bottom: 1rem;
   letter-spacing: 2px;
+  font-family: var(--font-display);
 }
 
 p {
@@ -71,6 +109,7 @@ p {
   font-size: 1.2rem;
   margin: 0.5rem 0;
   text-shadow: 0 0 5px var(--neon-cyan);
+  font-family: var(--font-primary);
 }
 
 /* Glow effects */

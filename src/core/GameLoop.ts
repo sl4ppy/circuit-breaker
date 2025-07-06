@@ -4,6 +4,7 @@
 import { GameState, GameStateType } from './GameState'
 import { Renderer } from '../rendering/Renderer'
 import { PhysicsEngine } from '../physics/PhysicsEngine'
+import { fontManager } from '../utils/FontManager'
 
 export class GameLoop {
   private animationId: number | null = null
@@ -96,18 +97,20 @@ export class GameLoop {
 
     // Render game based on state
     if (gameState.isPlaying()) {
-      this.renderGameplay()
+      this.renderGameplay(gameState)
     } else if (gameState.isState(GameStateType.MENU)) {
-      this.renderMenu()
+      this.renderMenu(gameState)
     } else if (gameState.isState(GameStateType.PAUSED)) {
       this.renderPaused()
+    } else if (gameState.isState(GameStateType.GAME_OVER)) {
+      this.renderGameOver(gameState)
     }
   }
 
   /**
    * Render gameplay
    */
-  private renderGameplay(): void {
+  private renderGameplay(gameState: GameState): void {
     if (!this.renderer) return
 
     const ctx = this.renderer.getContext()
@@ -117,9 +120,15 @@ export class GameLoop {
     ctx.fillStyle = '#1a1a1a'
     ctx.fillRect(0, 0, 360, 640)
 
-    // Draw all physics objects as circles
+    // Draw all physics objects except balls first
     if (this.physicsEngine) {
       for (const obj of this.physicsEngine.getObjects()) {
+        // Skip balls - we'll draw them last
+        if (obj.id === 'game-ball' || obj.id.includes('ball')) {
+          continue
+        }
+        
+        // Render other objects as simple circles
         ctx.beginPath()
         const pos = obj.position || { x: obj.x || 0, y: obj.y || 0 }
         const radius = obj.radius || 10
@@ -130,7 +139,7 @@ export class GameLoop {
           ctx.fillStyle = '#ff0066' // Red for static obstacles
           ctx.shadowColor = '#ff0066'
         } else {
-          ctx.fillStyle = '#00ffff' // Cyan for dynamic balls
+          ctx.fillStyle = '#00ffff' // Cyan for dynamic objects
           ctx.shadowColor = '#00ffff'
         }
         
@@ -139,8 +148,8 @@ export class GameLoop {
         ctx.shadowBlur = 0
         ctx.closePath()
 
-        // Minimal debug info for performance
-        if (this.physicsEngine.getDebug && this.physicsEngine.getDebug()) {
+        // Debug info for non-ball objects - only show if debug mode is enabled
+        if (gameState.isDebugMode() && this.physicsEngine.getDebug && this.physicsEngine.getDebug()) {
           // Draw velocity vectors for debugging
           if (!obj.isStatic && obj.velocity) {
             const velScale = 3 // Reduced scale for performance
@@ -161,8 +170,8 @@ export class GameLoop {
         }
       }
 
-      // Only draw debug info when enabled
-      if (this.physicsEngine.getDebug && this.physicsEngine.getDebug()) {
+      // Only draw debug info when debug mode is enabled
+      if (gameState.isDebugMode() && this.physicsEngine.getDebug && this.physicsEngine.getDebug()) {
         // Draw collision manifolds for debugging
         if (this.physicsEngine.getCollisionManifolds) {
           const manifolds = this.physicsEngine.getCollisionManifolds()
@@ -197,21 +206,62 @@ export class GameLoop {
       }
     }
 
-    // Draw placeholder text
-    ctx.fillStyle = '#00ffff'
-    ctx.font = '20px Courier New'
-    ctx.textAlign = 'center'
-    ctx.fillText('Circuit Breaker', 180, 40)
-    ctx.font = '12px Courier New'
-    ctx.fillText('Robust Physics System Active', 180, 60)
+    // Draw placeholder text - only in debug mode
+    if (gameState.isDebugMode()) {
+      ctx.fillStyle = '#00ffff'
+      ctx.font = '20px Courier New'
+      ctx.textAlign = 'center'
+      ctx.fillText('Circuit Breaker', 180, 40)
+      ctx.font = '12px Courier New'
+      ctx.fillText('Robust Physics System Active', 180, 60)
+    }
     
-    // Call game's render method for additional elements
+    // Call game's render method for additional elements (holes, UI, etc.)
     if (this.game && this.game.renderGameplay) {
       this.game.renderGameplay()
     }
 
-    // Enhanced debug info
+    // Draw balls LAST so they appear on top of everything
     if (this.physicsEngine) {
+      for (const obj of this.physicsEngine.getObjects()) {
+        // Only render balls
+        if (obj.id === 'game-ball' || obj.id.includes('ball')) {
+          if (this.renderer) {
+            // Get animation state from game if available
+            const animationState = this.game && this.game.getHoleAnimationState ? 
+              this.game.getHoleAnimationState() : null
+            this.renderer.drawChromeBall(obj, animationState)
+          }
+
+          // Debug info for balls - only show if debug mode is enabled
+          if (gameState.isDebugMode() && this.physicsEngine.getDebug && this.physicsEngine.getDebug()) {
+            const pos = obj.position || { x: obj.x || 0, y: obj.y || 0 }
+            const radius = obj.radius || 10
+            
+            // Draw velocity vectors for debugging
+            if (!obj.isStatic && obj.velocity) {
+              const velScale = 3 // Reduced scale for performance
+              ctx.beginPath()
+              ctx.moveTo(pos.x, pos.y)
+              ctx.lineTo(pos.x + obj.velocity.x * velScale, pos.y + obj.velocity.y * velScale)
+              ctx.strokeStyle = '#ffff00'
+              ctx.lineWidth = 1
+              ctx.stroke()
+              ctx.closePath()
+            }
+
+            // Draw minimal object info
+            ctx.fillStyle = '#ffffff'
+            ctx.font = '8px Courier New'
+            ctx.textAlign = 'center'
+            ctx.fillText(obj.id, pos.x, pos.y - radius - 5)
+          }
+        }
+      }
+    }
+
+    // Enhanced debug info - only show if debug mode is enabled
+    if (gameState.isDebugMode() && this.physicsEngine) {
       const objects = this.physicsEngine.getObjects()
       const dynamicObjects = objects.filter(obj => !obj.isStatic).length
       const staticObjects = objects.filter(obj => obj.isStatic).length
@@ -236,7 +286,7 @@ export class GameLoop {
   /**
    * Render menu
    */
-  private renderMenu(): void {
+  private renderMenu(gameState: GameState): void {
     if (!this.renderer) return
 
     const ctx = this.renderer.getContext()
@@ -246,15 +296,84 @@ export class GameLoop {
     ctx.fillStyle = '#1a1a1a'
     ctx.fillRect(0, 0, 360, 640)
 
-    // Draw menu text
+    // Draw cyberpunk grid background
+    ctx.strokeStyle = '#003366'
+    ctx.lineWidth = 1
+    ctx.globalAlpha = 0.3
+    
+    // Vertical lines
+    for (let x = 0; x <= 360; x += 20) {
+      ctx.beginPath()
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, 640)
+      ctx.stroke()
+    }
+    
+    // Horizontal lines
+    for (let y = 0; y <= 640; y += 20) {
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(360, y)
+      ctx.stroke()
+    }
+    
+    ctx.globalAlpha = 1
+
+    // Draw main title with neon glow
+    ctx.save()
+    ctx.shadowColor = '#00ffff'
+    ctx.shadowBlur = 20
     ctx.fillStyle = '#00ffff'
-    ctx.font = '24px Courier New'
+    fontManager.setFont(ctx, 'display', 32, 'bold')
     ctx.textAlign = 'center'
-    ctx.fillText('CIRCUIT BREAKER', 180, 280)
-    ctx.font = '14px Courier New'
-    ctx.fillText('Neon Cyberpunk Arcade Game', 180, 310)
-    ctx.font = '12px Courier New'
-    ctx.fillText('Click to Start', 180, 350)
+    ctx.fillText('CIRCUIT', 180, 200)
+    ctx.fillText('BREAKER', 180, 240)
+    ctx.restore()
+
+    // Draw subtitle
+    ctx.fillStyle = '#ff0066'
+    fontManager.setFont(ctx, 'primary', 16)
+    ctx.textAlign = 'center'
+    ctx.fillText('NEON CYBERPUNK PINBALL', 180, 280)
+
+    // Draw description
+    ctx.fillStyle = '#ffffff'
+    fontManager.setFont(ctx, 'primary', 12)
+    ctx.fillText('Navigate the ball through cyber holes', 180, 320)
+    ctx.fillText('to reach all goals and break the circuit', 180, 340)
+
+    // Draw start instruction with pulse effect
+    const time = Date.now()
+    const pulseAlpha = 0.5 + 0.5 * Math.sin(time / 500)
+    ctx.save()
+    ctx.globalAlpha = pulseAlpha
+    ctx.shadowColor = '#00ff00'
+    ctx.shadowBlur = 10
+    ctx.fillStyle = '#00ff00'
+    fontManager.setFont(ctx, 'primary', 14, 'bold')
+    ctx.fillText('CLICK OR PRESS SPACE TO START', 180, 420)
+    ctx.restore()
+
+    // Draw controls
+    ctx.fillStyle = '#888888'
+    fontManager.setFont(ctx, 'primary', 10)
+    ctx.fillText('CONTROLS:', 180, 480)
+    ctx.fillText('A/Z - Left Side Up/Down', 180, 500)
+    ctx.fillText('↑/↓ - Right Side Up/Down', 180, 520)
+    ctx.fillText('SPACE - Start/Place Ball', 180, 540)
+    ctx.fillText('D - Toggle Debug Mode', 180, 560)
+
+    // Draw debug mode status
+    const debugStatus = gameState.isDebugMode() ? 'ON' : 'OFF'
+    const debugColor = gameState.isDebugMode() ? '#00ff00' : '#ff0066'
+    ctx.fillStyle = debugColor
+    fontManager.setFont(ctx, 'primary', 12)
+    ctx.fillText(`DEBUG MODE: ${debugStatus}`, 180, 460)
+
+    // Draw version info
+    ctx.fillStyle = '#444444'
+    fontManager.setFont(ctx, 'primary', 8)
+    ctx.fillText('Circuit Breaker v0.3.0', 180, 590)
   }
 
   /**
@@ -274,6 +393,83 @@ export class GameLoop {
     ctx.font = '20px Courier New'
     ctx.textAlign = 'center'
     ctx.fillText('PAUSED', 180, 320)
+  }
+
+  /**
+   * Render game over state
+   */
+  private renderGameOver(gameState: GameState): void {
+    if (!this.renderer) return
+
+    const ctx = this.renderer.getContext()
+    if (!ctx) return
+
+    // Draw dark background
+    ctx.fillStyle = '#0a0a0a'
+    ctx.fillRect(0, 0, 360, 640)
+
+    // Draw red alert grid
+    ctx.strokeStyle = '#660000'
+    ctx.lineWidth = 1
+    ctx.globalAlpha = 0.3
+    
+    // Vertical lines
+    for (let x = 0; x <= 360; x += 30) {
+      ctx.beginPath()
+      ctx.moveTo(x, 0)
+      ctx.lineTo(x, 640)
+      ctx.stroke()
+    }
+    
+    // Horizontal lines
+    for (let y = 0; y <= 640; y += 30) {
+      ctx.beginPath()
+      ctx.moveTo(0, y)
+      ctx.lineTo(360, y)
+      ctx.stroke()
+    }
+    
+    ctx.globalAlpha = 1
+
+    // Draw GAME OVER with red glow
+    ctx.save()
+    ctx.shadowColor = '#ff0000'
+    ctx.shadowBlur = 25
+    ctx.fillStyle = '#ff0000'
+    fontManager.setFont(ctx, 'display', 28, 'bold')
+    ctx.textAlign = 'center'
+    ctx.fillText('GAME OVER', 180, 200)
+    ctx.restore()
+
+    // Draw circuit broken subtitle
+    ctx.fillStyle = '#ff6666'
+    fontManager.setFont(ctx, 'primary', 14)
+    ctx.textAlign = 'center'
+    ctx.fillText('CIRCUIT BREAKER MALFUNCTION', 180, 230)
+
+    // Get and display score
+    const stateData = gameState.getStateData()
+    ctx.fillStyle = '#ffffff'
+    fontManager.setFont(ctx, 'primary', 16)
+    ctx.fillText(`FINAL SCORE: ${stateData.score}`, 180, 280)
+    ctx.fillText(`LEVEL REACHED: ${stateData.currentLevel}`, 180, 310)
+
+    // Draw restart instruction with pulse effect
+    const time = Date.now()
+    const pulseAlpha = 0.5 + 0.5 * Math.sin(time / 400)
+    ctx.save()
+    ctx.globalAlpha = pulseAlpha
+    ctx.shadowColor = '#00ff00'
+    ctx.shadowBlur = 10
+    ctx.fillStyle = '#00ff00'
+    fontManager.setFont(ctx, 'primary', 12, 'bold')
+    ctx.fillText('CLICK OR PRESS SPACE TO RETURN TO MENU', 180, 400)
+    ctx.restore()
+
+    // Draw system message
+    ctx.fillStyle = '#666666'
+    fontManager.setFont(ctx, 'primary', 10)
+    ctx.fillText('SYSTEM: Preparing for circuit restart...', 180, 480)
   }
 
   /**
