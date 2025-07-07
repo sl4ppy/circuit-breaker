@@ -93,10 +93,18 @@ Pause:      Escape or Pause Button
 
 ### Level Elements
 - **Static Nodes**: Fixed electrical hazards
+- **Animated Nodes**: Dynamic holes that appear/disappear with spring animation
 - **Moving Hazards**: Rotating or sliding obstacles
 - **Multiple Targets**: Choose between different ports
 - **Time Pressure**: Countdown timers for urgency
 - **Special Mechanics**: Teleporters, speed zones, barriers
+
+### Dynamic Animated Holes (v1.0.0)
+- **Appearance**: Holes spring into view with smooth overshoot animation
+- **Timing**: 1-second animation in, 3-10 seconds active, 1-second animation out, 2-5 seconds hidden
+- **Positioning**: Only appear in top half of playfield for balanced difficulty
+- **Scaling**: 2-3 holes in early levels, increasing with level progression
+- **Collision**: Only active for collision when fully visible, creating dynamic obstacle patterns
 
 ## Failure Modes
 

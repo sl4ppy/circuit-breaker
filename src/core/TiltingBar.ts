@@ -25,6 +25,7 @@ export class TiltingBar {
   public rotationSpeed: number;
   public friction: number;
   private speedMultiplier: number = 1.0; // For power-up effects
+  private saucerHeightConstraint: number | null = null; // Constraint when ball is in saucer
 
   // Visual properties
   public color: string = '#00f0ff'; // Electric Blue
@@ -56,8 +57,14 @@ export class TiltingBar {
   public moveLeftSide(input: number): void {
     if (input !== 0) {
       this.leftSideHeight -= input * this.sideSpeed * this.speedMultiplier * (1 / 60); // Move up (negative) or down (positive)
+      
+      // Apply saucer height constraint if active
+      const effectiveMinHeight = this.saucerHeightConstraint !== null 
+        ? Math.max(this.minSideHeight, this.saucerHeightConstraint)
+        : this.minSideHeight;
+      
       this.leftSideHeight = Math.max(
-        this.minSideHeight,
+        effectiveMinHeight,
         Math.min(this.maxSideHeight, this.leftSideHeight),
       );
     }
@@ -69,8 +76,14 @@ export class TiltingBar {
   public moveRightSide(input: number): void {
     if (input !== 0) {
       this.rightSideHeight -= input * this.sideSpeed * this.speedMultiplier * (1 / 60); // Move up (negative) or down (positive)
+      
+      // Apply saucer height constraint if active
+      const effectiveMinHeight = this.saucerHeightConstraint !== null 
+        ? Math.max(this.minSideHeight, this.saucerHeightConstraint)
+        : this.minSideHeight;
+      
       this.rightSideHeight = Math.max(
-        this.minSideHeight,
+        effectiveMinHeight,
         Math.min(this.maxSideHeight, this.rightSideHeight),
       );
     }
@@ -245,6 +258,38 @@ export class TiltingBar {
   }
 
   /**
+   * Set height constraint when ball is in saucer (prevents bar from moving above ball)
+   */
+  public setSaucerHeightConstraint(ballY: number): void {
+    this.saucerHeightConstraint = ballY;
+    
+    // If current bar position is above the constraint, adjust it
+    if (this.leftSideHeight < ballY) {
+      this.leftSideHeight = ballY;
+    }
+    if (this.rightSideHeight < ballY) {
+      this.rightSideHeight = ballY;
+    }
+    
+    logger.debug(`🛸 Set saucer height constraint: ${ballY}`, null, 'TiltingBar');
+  }
+
+  /**
+   * Clear height constraint when ball leaves saucer
+   */
+  public clearSaucerHeightConstraint(): void {
+    this.saucerHeightConstraint = null;
+    logger.debug('🛸 Cleared saucer height constraint', null, 'TiltingBar');
+  }
+
+  /**
+   * Check if saucer height constraint is active
+   */
+  public hasSaucerHeightConstraint(): boolean {
+    return this.saucerHeightConstraint !== null;
+  }
+
+  /**
    * Reset the tilting bar to its starting position (both sides at bottom)
    */
   public reset(): void {
@@ -253,6 +298,7 @@ export class TiltingBar {
     this.rotation = 0; // Reset rotation to horizontal
     this.targetRotation = 0; // Reset target rotation
     this.speedMultiplier = 1.0; // Reset speed multiplier
+    this.saucerHeightConstraint = null; // Clear saucer constraint
     logger.info('🔄 Tilting bar reset to starting position', null, 'TiltingBar');
   }
 }

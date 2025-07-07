@@ -1,4 +1,5 @@
 import { logger } from '../utils/Logger';
+import { ScalingManager } from '../utils/ScalingManager';
 
 export interface InputState {
   keys: { [key: string]: boolean };
@@ -147,16 +148,22 @@ export class InputManager {
   }
 
   /**
-   * Get current mouse position
+   * Get current mouse position in game coordinates
    */
   public getMousePosition(): { x: number; y: number } | null {
     if (!this.canvas) return null;
     
-    const rect = this.canvas.getBoundingClientRect();
-    return {
-      x: this.inputState.mouse.x - rect.left,
-      y: this.inputState.mouse.y - rect.top,
-    };
+    try {
+      const scalingManager = ScalingManager.getInstance();
+      return scalingManager.screenToGame(this.inputState.mouse.x, this.inputState.mouse.y);
+    } catch (error) {
+      // Fallback to old method if ScalingManager not initialized
+      const rect = this.canvas.getBoundingClientRect();
+      return {
+        x: this.inputState.mouse.x - rect.left,
+        y: this.inputState.mouse.y - rect.top,
+      };
+    }
   }
 
   private previousMouseState: boolean = false;
@@ -191,11 +198,21 @@ export class InputManager {
 
     // Add mouse tilt control if mouse is being used
     if (this.canvas && this.inputState.mouse.isDown) {
-      const rect = this.canvas.getBoundingClientRect();
-      const centerX = rect.width / 2;
-      const mouseX = this.inputState.mouse.x - rect.left;
-      const mouseTilt = (mouseX - centerX) / centerX;
-      this.inputState.tiltInput = Math.max(-1, Math.min(1, mouseTilt));
+      try {
+        const scalingManager = ScalingManager.getInstance();
+        const gamePos = scalingManager.screenToGame(this.inputState.mouse.x, this.inputState.mouse.y);
+        const gameWidth = 360; // Game's base width
+        const centerX = gameWidth / 2;
+        const mouseTilt = (gamePos.x - centerX) / centerX;
+        this.inputState.tiltInput = Math.max(-1, Math.min(1, mouseTilt));
+      } catch (error) {
+        // Fallback to old method if ScalingManager not initialized
+        const rect = this.canvas.getBoundingClientRect();
+        const centerX = rect.width / 2;
+        const mouseX = this.inputState.mouse.x - rect.left;
+        const mouseTilt = (mouseX - centerX) / centerX;
+        this.inputState.tiltInput = Math.max(-1, Math.min(1, mouseTilt));
+      }
     } else {
       this.inputState.tiltInput = Math.max(-1, Math.min(1, tiltInput));
     }

@@ -19,6 +19,11 @@ import { StorageManager, GameProgress } from './StorageManager';
 import { AchievementManager } from './AchievementManager';
 import { StatsManager } from './StatsManager';
 import { PowerUpManager, PowerUpType } from './PowerUpManager';
+import { PowerUpEffects, EffectContext } from './PowerUpEffects';
+import { PowerUpEventSystem } from './PowerUpEventSystem';
+import { PowerUpDebugger } from '../utils/PowerUpDebugger';
+import { getPowerUpConfig } from './PowerUpConfig';
+import { PointFlyOffManager } from '../ui/PointFlyOffManager';
 
 
 export class Game {
@@ -38,9 +43,14 @@ export class Game {
   private achievementManager: AchievementManager;
   private statsManager: StatsManager;
   private powerUpManager: PowerUpManager;
+  private powerUpEffects: PowerUpEffects;
+  private powerUpEventSystem: PowerUpEventSystem;
+  private powerUpDebugger: PowerUpDebugger;
+  private pointFlyOffManager: PointFlyOffManager;
   private currentLevel: Level | null = null;
   private isRunning: boolean = false;
   private levelCompletionHandled: boolean = false;
+  private lastSaucerConstraintY: number | undefined = undefined;
 
   // Hole animation state
   private isAnimatingHoleFall: boolean = false;
@@ -86,7 +96,31 @@ export class Game {
     this.storageManager = new StorageManager();
     this.achievementManager = new AchievementManager();
     this.statsManager = new StatsManager();
-    this.powerUpManager = new PowerUpManager();
+    
+    // Initialize power-up system with event-driven architecture
+    this.powerUpEventSystem = new PowerUpEventSystem();
+    this.powerUpManager = new PowerUpManager(this.powerUpEventSystem);
+    this.powerUpEffects = new PowerUpEffects();
+    this.powerUpDebugger = new PowerUpDebugger(
+      this.powerUpManager,
+      this.powerUpEffects,
+      this.powerUpEventSystem,
+      {
+        showOverlay: false,
+        showPerformanceStats: true,
+        showEventHistory: true,
+        showCacheStats: true,
+        showValidation: true,
+        logLevel: 'warn',
+      }
+    );
+    
+    // Setup power-up event callbacks
+    this.setupPowerUpEventCallbacks();
+    
+    // Initialize point fly-off system
+    this.pointFlyOffManager = new PointFlyOffManager();
+
     this.settingsMenu = new SettingsMenu({
       audioManager: this.audioManager,
       onClose: () => this.closeSettings(),
@@ -119,7 +153,74 @@ export class Game {
       rotationSpeed: 3,
       friction: 0.05, // Low friction for smooth rolling
     });
-    logger.info('🎮 Circuit Breaker - Game initialized', null, 'Game');
+    logger.info('🎮 Circuit Breaker - Game initialized with enhanced power-up system', null, 'Game');
+  }
+
+  /**
+   * Setup power-up event callbacks for integration with game systems
+   */
+  private setupPowerUpEventCallbacks(): void {
+    this.powerUpEventSystem.registerGlobalCallbacks({
+      onActivated: (data) => {
+        // Apply physics effects when power-up is activated
+        const context = this.createEffectContext();
+        this.powerUpEffects.applyPhysicsEffects(data.type, context);
+        
+        // Play activation audio
+        const config = getPowerUpConfig(data.type);
+        if (config.audio.activation) {
+          this.audioManager.playSound(config.audio.activation);
+        }
+        
+        logger.info(`⚡ Power-up activated: ${data.type}`, null, 'Game');
+      },
+      
+      onDeactivated: (data) => {
+        // Remove physics effects when power-up is deactivated
+        const context = this.createEffectContext();
+        this.powerUpEffects.removePhysicsEffects(data.type, context);
+        
+        // Play deactivation audio
+        const config = getPowerUpConfig(data.type);
+        if (config.audio.deactivation) {
+          this.audioManager.playSound(config.audio.deactivation);
+        }
+        
+        logger.info(`⚡ Power-up deactivated: ${data.type}`, null, 'Game');
+      },
+      
+      onExpired: (data) => {
+        // Remove physics effects when power-up expires
+        const context = this.createEffectContext();
+        this.powerUpEffects.removePhysicsEffects(data.type, context);
+        
+        logger.info(`⚡ Power-up expired: ${data.type}`, null, 'Game');
+      },
+    });
+  }
+
+  /**
+   * Create effect context for power-up effects
+   */
+  private createEffectContext(): EffectContext {
+    let targetPosition: { x: number; y: number } | undefined;
+    
+    // Get goal hole position if available
+    if (this.currentLevel) {
+      const levelData = this.currentLevel.getLevelData();
+      const goalHole = levelData.holes.find(hole => hole.isGoal);
+      if (goalHole) {
+        targetPosition = { x: goalHole.position.x, y: goalHole.position.y };
+      }
+    }
+
+    return {
+      physicsEngine: this.physicsEngine,
+      tiltingBar: this.tiltingBar,
+      currentTime: Date.now(),
+      deltaTime: 16.67, // Approximate delta for 60fps
+      targetPosition,
+    };
   }
 
   /**
@@ -168,6 +269,23 @@ export class Game {
           return true;
         }
         return originalIsBallHeld(ballId);
+      };
+
+      // Override physics engine's ball sinking check to detect sinking phase
+      const originalIsBallSinking = this.physicsEngine.isBallSinking.bind(this.physicsEngine);
+      this.physicsEngine.isBallSinking = (ballId: string) => {
+        // Check if ball is in sinking phase
+        if (this.currentLevel) {
+          const levelData = this.currentLevel.getLevelData();
+          for (const hole of levelData.holes) {
+            if (hole.saucerState?.isActive && 
+                hole.saucerState.ballId === ballId && 
+                hole.saucerState.phase === 'sinking') {
+              return true;
+            }
+          }
+        }
+        return originalIsBallSinking(ballId);
       };
 
       // Override physics engine's held ball target to get saucer position
@@ -281,6 +399,9 @@ export class Game {
    * @param deltaTime Time elapsed since last frame (ms)
    */
   public update(deltaTime: number): void {
+    // Start performance measurement for debugging
+    this.powerUpDebugger.startFrameMeasurement();
+
     // Update input
     this.inputManager.update();
 
@@ -508,12 +629,20 @@ export class Game {
       // Update power-up manager
       this.powerUpManager.update(deltaTime);
       
+      // Update physics effects for active power-ups
+      const context = this.createEffectContext();
+      context.deltaTime = deltaTime;
+      this.powerUpEffects.updatePhysicsEffects(context);
+
       // Auto-save and check achievements during gameplay
       this.autoSave();
       this.checkAchievements();
 
       // Update achievement notification
       this.achievementNotification.update(deltaTime);
+      
+      // Update point fly-offs
+      this.pointFlyOffManager.update(deltaTime);
 
       // Handle escape key - show confirmation dialog
       if (this.inputManager.isActionJustPressed('pause')) {
@@ -566,8 +695,14 @@ export class Game {
       }
     }
 
+    // Handle debug input
+    this.handleDebugInput();
+
     // End frame - update previous input state for next frame
     this.inputManager.endFrame();
+
+    // End performance measurement for debugging
+    this.powerUpDebugger.endFrameMeasurement();
   }
 
   /**
@@ -581,7 +716,8 @@ export class Game {
       // Draw holes FIRST (under everything) - only draw active holes
       for (const hole of levelData.holes) {
         // Skip deactivated holes (like collected power-up holes)
-        if (!hole.isActive) continue;
+        // BUT allow animated holes to be rendered even when not active for gameplay
+        if (!hole.isActive && !hole.animationState?.isAnimated) continue;
         
         // Check if this goal hole has been completed
         const isCompleted =
@@ -658,6 +794,12 @@ export class Game {
     // Render power-up effects
     this.renderPowerUpEffects();
 
+    // Render point fly-offs (score animations)
+    const ctx = this.renderer.getContext();
+    if (ctx) {
+      this.pointFlyOffManager.render(ctx);
+    }
+
     // Render settings menu if open
     if (this.gameState.isSettings()) {
       const ctx = this.renderer.getContext();
@@ -679,33 +821,183 @@ export class Game {
       : null;
   }
 
-
-
   /**
-   * Render power-up effects and UI
+   * Render power-up effects using the new system
    */
   private renderPowerUpEffects(): void {
     const ctx = this.renderer.getContext();
     if (!ctx) return;
 
-    // Get active power-ups
+    // Get active power-ups and visual effects
     const activePowerUps = this.powerUpManager.getActivePowerUps();
-    const powerUpEffects = this.powerUpManager.getPowerUpEffects();
+    const context = this.createEffectContext();
+    const visualEffects = this.powerUpEffects.getVisualEffects(activePowerUps, context);
 
-    // Render power-up overlays
-    if (powerUpEffects.timeScale) {
-      // Slow-Mo Surge overlay - more prominent
-      ctx.fillStyle = 'rgba(0, 255, 255, 0.4)'; // More opaque cyan overlay
-      ctx.fillRect(0, 0, 360, 640);
-      
-      // Add pulsing effect
-      const pulseIntensity = 0.2 + 0.1 * Math.sin(Date.now() * 0.01);
-      ctx.fillStyle = `rgba(0, 255, 255, ${pulseIntensity})`;
-      ctx.fillRect(0, 0, 360, 640);
-    }
+    // Render visual effects
+    visualEffects.forEach(effect => {
+      this.renderVisualEffect(ctx, effect);
+    });
 
     // Render power-up HUD
     this.renderPowerUpHUD(ctx, activePowerUps);
+
+    // Render debug overlay if enabled
+    this.powerUpDebugger.render(ctx);
+  }
+
+  /**
+   * Render individual visual effect
+   */
+  private renderVisualEffect(ctx: CanvasRenderingContext2D, effect: any): void {
+    ctx.save();
+
+    switch (effect.type) {
+      case 'overlay':
+        this.renderOverlayEffect(ctx, effect.data);
+        break;
+      case 'glow':
+        this.renderGlowEffect(ctx, effect.data);
+        break;
+      case 'particle':
+        this.renderParticleEffect(ctx, effect.data);
+        break;
+      case 'animation':
+        this.renderAnimationEffect(ctx, effect.data);
+        break;
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * Render overlay visual effect
+   */
+  private renderOverlayEffect(ctx: CanvasRenderingContext2D, data: any): void {
+    if (data.type === 'path_reveal' && data.path) {
+      // Render path visualization for scan reveal
+      ctx.strokeStyle = data.color || '#00ffff';
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = data.opacity || 0.6;
+      
+      ctx.beginPath();
+      data.path.forEach((point: any, index: number) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+      ctx.stroke();
+    } else {
+      // Regular overlay
+      ctx.fillStyle = data.color || 'rgba(0, 255, 255, 0.2)';
+      ctx.globalAlpha = data.opacity || 0.3;
+      
+      if (data.pulse) {
+        const intensity = data.currentIntensity || data.intensity || 1.0;
+        ctx.globalAlpha *= intensity;
+      }
+      
+      ctx.fillRect(0, 0, 360, 640);
+    }
+  }
+
+  /**
+   * Render glow visual effect
+   */
+  private renderGlowEffect(ctx: CanvasRenderingContext2D, data: any): void {
+    let targetPosition = { x: 180, y: 320 }; // Default center
+    
+    // Get target object position
+    if (data.target === 'ball') {
+      const ball = this.physicsEngine.getObjects().find(obj => obj.id === 'game-ball');
+      if (ball) {
+        targetPosition = ball.position;
+      }
+    } else if (data.target === 'hole' && this.currentLevel) {
+      const levelData = this.currentLevel.getLevelData();
+      const goalHole = levelData.holes.find(hole => hole.isGoal);
+      if (goalHole) {
+        targetPosition = { x: goalHole.position.x, y: goalHole.position.y };
+      }
+    } else if (data.target === 'bar') {
+      targetPosition = this.tiltingBar.position;
+    }
+
+    // Render glow effect
+    const intensity = data.currentIntensity || data.intensity || 1.0;
+    const radius = (data.radius || 30) * intensity;
+    
+    const gradient = ctx.createRadialGradient(
+      targetPosition.x, targetPosition.y, 0,
+      targetPosition.x, targetPosition.y, radius
+    );
+    
+    gradient.addColorStop(0, data.color || '#ffffff');
+    gradient.addColorStop(1, 'transparent');
+    
+    ctx.fillStyle = gradient;
+    ctx.globalAlpha = intensity * 0.5;
+    ctx.fillRect(
+      targetPosition.x - radius,
+      targetPosition.y - radius,
+      radius * 2,
+      radius * 2
+    );
+  }
+
+  /**
+   * Render particle visual effect
+   */
+  private renderParticleEffect(ctx: CanvasRenderingContext2D, data: any): void {
+    // Simple particle rendering - can be enhanced
+    if (data.type === 'electric_arc' && data.from === 'ball' && data.to === 'hole') {
+      const ball = this.physicsEngine.getObjects().find(obj => obj.id === 'game-ball');
+      let holePosition = { x: 180, y: 50 };
+      
+      if (this.currentLevel) {
+        const levelData = this.currentLevel.getLevelData();
+        const goalHole = levelData.holes.find(hole => hole.isGoal);
+        if (goalHole) {
+          holePosition = { x: goalHole.position.x, y: goalHole.position.y };
+        }
+      }
+      
+      if (ball) {
+        // Draw electric arc lines
+        ctx.strokeStyle = data.color || '#ff00ff';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.7;
+        
+        for (let i = 0; i < (data.count || 3); i++) {
+          const offset = (Math.random() - 0.5) * 20;
+          ctx.beginPath();
+          ctx.moveTo(ball.position.x + offset, ball.position.y + offset);
+          ctx.lineTo(holePosition.x - offset, holePosition.y - offset);
+          ctx.stroke();
+        }
+      }
+    }
+  }
+
+  /**
+   * Render animation visual effect
+   */
+  private renderAnimationEffect(ctx: CanvasRenderingContext2D, data: any): void {
+    if (data.type === 'scan_bar') {
+      // Render scanning animation
+      const time = Date.now() * (data.speed || 2.0) * 0.001;
+      const scanY = (Math.sin(time) * 0.5 + 0.5) * 640;
+      
+      ctx.strokeStyle = data.color || '#00ffff';
+      ctx.lineWidth = 3;
+      ctx.globalAlpha = 0.8;
+      
+      ctx.beginPath();
+      ctx.moveTo(0, scanY);
+      ctx.lineTo(360, scanY);
+      ctx.stroke();
+    }
   }
 
   /**
@@ -895,10 +1187,103 @@ export class Game {
   }
 
   /**
-   * Get power-up manager
+   * Handle ball falling off screen
+   */
+  private handleBallFallOff(): void {
+    const ball = this.physicsEngine.getObjects().find(obj => obj.id === 'game-ball');
+    
+    if (ball && this.powerUpEffects.shouldUseShield(ball.position, { width: 360, height: 640 })) {
+      // Try to use shield
+      if (this.powerUpManager.useShield()) {
+        logger.info('🛡️ Shield protected ball from falling!', null, 'Game');
+        this.audioManager.playSound('shield_used');
+        
+        // Reset ball to safe position
+        this.placeBallOnBar();
+        return;
+      }
+    }
+
+    logger.warn('💀 Ball fell off screen!', null, 'Game');
+    
+    // Record ball lost event
+    this.statsManager.recordEvent({
+      type: 'ball_lost',
+      timestamp: Date.now(),
+    });
+
+    // Update game progress
+    this.gameProgress.totalBallsLost++;
+
+    // Reduce lives
+    const currentLives = this.gameState.getStateData().lives;
+    if (currentLives > 1) {
+      this.gameState.updateStateData({ lives: currentLives - 1 });
+      logger.info(`💔 Lives remaining: ${currentLives - 1}`, null, 'Game');
+
+      // Reset for next attempt
+      this.placeBallOnBar();
+    } else {
+      // Game over
+      this.handleGameOver();
+    }
+  }
+
+  /**
+   * Load next level
+   */
+  private loadNextLevel(levelId: number): void {
+    logger.info(`🔄 Loading level ${levelId}...`, null, 'Game');
+
+    // Record level start event
+    this.statsManager.recordEvent({
+      type: 'level_start',
+      timestamp: Date.now(),
+      data: { levelId },
+    });
+
+    this.currentLevel = this.levelManager.loadLevel(levelId);
+    if (this.currentLevel) {
+      this.currentLevel.start();
+      this.gameState.updateStateData({ currentLevel: levelId });
+      this.levelCompletionHandled = false; // Reset completion flag for new level
+
+      // Reset tilting bar to starting position
+      this.tiltingBar.reset();
+
+      // Reset ball to starting position on the bar
+      this.placeBallOnBar();
+
+      logger.info(`🎯 Level ${levelId} loaded and started`, null, 'Game');
+    }
+  }
+
+  /**
+   * Get power-up manager (for external access)
    */
   public getPowerUpManager(): PowerUpManager {
     return this.powerUpManager;
+  }
+
+  /**
+   * Get power-up effects system (for external access)
+   */
+  public getPowerUpEffects(): PowerUpEffects {
+    return this.powerUpEffects;
+  }
+
+  /**
+   * Get power-up event system (for external access)
+   */
+  public getPowerUpEventSystem(): PowerUpEventSystem {
+    return this.powerUpEventSystem;
+  }
+
+  /**
+   * Get power-up debugger (for external access)
+   */
+  public getPowerUpDebugger(): PowerUpDebugger {
+    return this.powerUpDebugger;
   }
 
   /**
@@ -907,8 +1292,6 @@ export class Game {
   public getIsAnimatingHoleFall(): boolean {
     return this.isAnimatingHoleFall;
   }
-
-
 
   /**
    * Check collisions between ball and level elements
@@ -993,6 +1376,12 @@ export class Game {
     const currentScore = this.gameState.getStateData().score;
     this.gameState.updateStateData({ score: currentScore + 500 });
 
+    // Show point fly-off animation above ball
+    const ball = this.physicsEngine.getObjects().find(obj => obj.id === 'game-ball');
+    if (ball) {
+      this.pointFlyOffManager.showGoalHit(500, ball.position);
+    }
+
     logger.info('💰 Goal bonus: 500 points', null, 'Game');
 
     // Check if all goals are completed
@@ -1019,15 +1408,40 @@ export class Game {
 
     // Check if this is a power-up hole
     const isPowerUpHole = hole.powerUpType !== undefined;
+    const isAnimatedHole = hole.animationState?.isAnimated;
+    
     if (isPowerUpHole) {
       // Start saucer behavior instead of immediate collection
       if (this.currentLevel) {
         this.currentLevel.startSaucerBehavior(hole.id, 'game-ball', Date.now());
         this.handlePowerUpHoleCollection(hole);
       }
-    } else {
-      // Regular hole - play falling sound and start animation
+    } else if (isAnimatedHole) {
+      // Animated hole - same as regular hole but with special effects
       this.audioManager.playSound('zap');
+      
+      // Reset tilting bar to starting position
+      this.tiltingBar.reset();
+      logger.info('🔄 Bar reset to starting position after ball fell into animated hole', null, 'Game');
+      
+      // Start hole animation with special flag for animated holes
+      this.startHoleAnimation('game-ball', hole.position, false, true);
+      
+      // Force the animated hole to animate out early (will cycle back after hidden phase)
+      if (hole.animationState) {
+        hole.animationState.phase = 'animating_out';
+        hole.animationState.startTime = Date.now();
+        hole.isActive = false;
+        logger.info(`🌟 Animated hole forced to animate out after ball collision: ${hole.id}`, null, 'Game');
+      }
+    } else {
+      // Regular hole - play falling sound, reset bar, and start animation
+      this.audioManager.playSound('zap');
+      
+      // Reset tilting bar to starting position
+      this.tiltingBar.reset();
+      logger.info('🔄 Bar reset to starting position after ball fell into hole', null, 'Game');
+      
       this.startHoleAnimation('game-ball', hole.position, false, false);
     }
   }
@@ -1037,6 +1451,9 @@ export class Game {
    */
   private updateSaucerBehavior(): void {
     if (!this.currentLevel) return;
+
+    // Check if any ball is in a saucer and update height constraints
+    this.updateSaucerHeightConstraints();
 
     const kickData = this.currentLevel.updateSaucerBehavior(Date.now());
     if (kickData) {
@@ -1050,6 +1467,9 @@ export class Game {
   private kickBallFromSaucer(kickData: { ballId: string; direction: { x: number; y: number }; force: number; holeId: string }): void {
     const ball = this.physicsEngine.getObjects().find(obj => obj.id === kickData.ballId);
     if (!ball) return;
+
+    // Clear height constraint when ball leaves saucer
+    this.tiltingBar.clearSaucerHeightConstraint();
 
     // Apply kick force to ball
     const kickVelocity = {
@@ -1068,6 +1488,55 @@ export class Game {
   }
 
   /**
+   * Update height constraints based on saucer ball positions
+   */
+  private updateSaucerHeightConstraints(): void {
+    if (!this.currentLevel) return;
+
+    // Check if any ball is in a saucer
+    let ballInSaucer = false;
+    let saucerBallY = 0;
+
+    // Find the game ball
+    const ball = this.physicsEngine.getObjects().find(obj => obj.id === 'game-ball');
+    if (!ball) return;
+
+    // Check all holes for active saucer states
+    const holes = this.currentLevel.getHoles();
+    for (const hole of holes) {
+      if (hole.saucerState?.isActive && hole.saucerState.ballId === 'game-ball') {
+        ballInSaucer = true;
+        
+        // Get ball position during saucer interaction
+        const saucerPosition = this.currentLevel.getSaucerBallPosition(hole.id);
+        if (saucerPosition) {
+          saucerBallY = saucerPosition.y;
+        } else {
+          // Fallback to hole position if saucer position not available
+          saucerBallY = hole.position.y;
+        }
+        break;
+      }
+    }
+
+    // Set or clear height constraint based on saucer state
+    if (ballInSaucer) {
+      // Only update constraint if ball position has changed significantly
+      if (!this.tiltingBar.hasSaucerHeightConstraint() || 
+          Math.abs(saucerBallY - (this.lastSaucerConstraintY || 0)) > 2) {
+        this.tiltingBar.setSaucerHeightConstraint(saucerBallY);
+        this.lastSaucerConstraintY = saucerBallY;
+      }
+    } else {
+      // Clear constraint if no ball in saucer
+      if (this.tiltingBar.hasSaucerHeightConstraint()) {
+        this.tiltingBar.clearSaucerHeightConstraint();
+        this.lastSaucerConstraintY = undefined;
+      }
+    }
+  }
+
+  /**
    * Handle power-up hole collection
    */
   private handlePowerUpHoleCollection(hole: Hole): void {
@@ -1077,6 +1546,15 @@ export class Game {
 
     // Add charge to the power-up
     this.powerUpManager.addCharges(hole.powerUpType, 1);
+
+    // Show point fly-off animation at hole position
+    const powerUpPoints = 100; // Base points for power-up collection
+    const powerUpColor = this.getPowerUpColor(hole.powerUpType);
+    this.pointFlyOffManager.showPowerUpCollect(
+      powerUpPoints,
+      hole.position,
+      powerUpColor
+    );
 
     // Don't deactivate the hole immediately - let saucer handle it
     // The hole will be deactivated after the ball is kicked out
@@ -1094,49 +1572,7 @@ export class Game {
     logger.info(`⚡ Added charge to ${hole.powerUpType} from power-up hole`, null, 'Game');
   }
 
-  /**
-   * Handle ball falling off screen
-   */
-  private handleBallFallOff(): void {
-    logger.warn('💀 Ball fell off screen!', null, 'Game');
 
-    // Check if shield should be used
-    if (this.powerUpManager.useShield()) {
-      logger.info('🛡️ Shield used to prevent ball loss!', null, 'Game');
-      this.audioManager.playSound('shield_break');
-      
-      // Reset ball to starting position on the bar
-      this.placeBallOnBar();
-      return;
-    }
-
-    // Record ball lost event
-    this.statsManager.recordEvent({
-      type: 'ball_lost',
-      timestamp: Date.now(),
-    });
-
-    // Update game progress
-    this.gameProgress.totalBallsLost++;
-
-    // Reduce lives
-    const currentLives = this.gameState.getStateData().lives;
-    if (currentLives > 1) {
-      this.gameState.updateStateData({ lives: currentLives - 1 });
-      logger.info(`💔 Lives remaining: ${currentLives - 1}`, null, 'Game');
-
-          // Reset power-ups for new game
-    this.powerUpManager.initializeRun();
-
-    // Reset tilting bar to starting position
-    this.tiltingBar.reset();
-
-    // Reset ball to starting position on the bar
-    this.placeBallOnBar();
-    } else {
-      this.handleGameOver();
-    }
-  }
 
   /**
    * Handle level completion
@@ -1170,6 +1606,12 @@ export class Game {
     const currentScore = this.gameState.getStateData().score;
     this.gameState.updateStateData({ score: currentScore + levelScore });
 
+    // Show level completion fly-off animation in center of screen
+    this.pointFlyOffManager.showLevelComplete(
+      levelScore,
+      { x: 180, y: 320 } // Center of 360x640 screen
+    );
+
     logger.info(`🎉 Level bonus: ${levelScore}`, null, 'Game');
 
     // Move to next level
@@ -1181,43 +1623,6 @@ export class Game {
       this.loadNextLevel(nextLevelId);
     } else {
       this.handleGameComplete();
-    }
-  }
-
-  /**
-   * Handle time up
-   */
-  // private handleTimeUp(): void {
-  //   logger.warn('⏰ Time up!', null, 'Game');
-  //   this.handleBallFallOff();
-  // }
-
-  /**
-   * Load next level
-   */
-  private loadNextLevel(levelId: number): void {
-    logger.info(`🔄 Loading level ${levelId}...`, null, 'Game');
-
-    // Record level start event
-    this.statsManager.recordEvent({
-      type: 'level_start',
-      timestamp: Date.now(),
-      data: { levelId },
-    });
-
-    this.currentLevel = this.levelManager.loadLevel(levelId);
-    if (this.currentLevel) {
-      this.currentLevel.start();
-      this.gameState.updateStateData({ currentLevel: levelId });
-      this.levelCompletionHandled = false; // Reset completion flag for new level
-
-      // Reset tilting bar to starting position
-      this.tiltingBar.reset();
-
-      // Reset ball to starting position on the bar
-      this.placeBallOnBar();
-
-            logger.info(`🎯 Level ${levelId} loaded and started`, null, 'Game');
     }
   }
 
@@ -1362,8 +1767,9 @@ export class Game {
       logger.info('🎯 Level 1 loaded and started', null, 'Game');
     }
 
-    // Reset tilting bar to starting position
+    // Reset tilting bar to starting position (this also clears saucer constraints)
     this.tiltingBar.reset();
+    this.lastSaucerConstraintY = undefined;
 
     // Reset ball to starting position on the bar
     this.placeBallOnBar();
@@ -2044,5 +2450,121 @@ export class Game {
   private closeStatsMenu(): void {
     logger.info('📊 Closing stats menu...', null, 'Game');
     this.gameState.setState(GameStateType.MENU);
+  }
+
+  /**
+   * Handle debug input for power-up system
+   */
+  private handleDebugInput(): void {
+    // Toggle debug overlay with F1
+    if (this.inputManager.isKeyJustPressed('F1')) {
+      this.powerUpDebugger.toggle();
+    }
+
+    // Clear debug history with F2
+    if (this.inputManager.isKeyJustPressed('F2')) {
+      this.powerUpDebugger.clearHistory();
+    }
+
+    // Export debug data with F3
+    if (this.inputManager.isKeyJustPressed('F3')) {
+      const debugData = this.powerUpDebugger.exportDebugData();
+      console.log('🔧 Debug Data Export:', debugData);
+    }
+
+    // Test point fly-offs with F4
+    if (this.inputManager.isKeyJustPressed('F4')) {
+      this.testPointFlyOffs();
+    }
+  }
+
+  /**
+   * Check if a ball is currently in a saucer waiting state
+   */
+  public getBallSpriteForSaucerState(ballId: string): string {
+    if (!this.currentLevel) return 'ball_normal';
+    
+    // Check if ball is in a saucer
+    const holes = this.currentLevel.getHoles();
+    for (const hole of holes) {
+      if (hole.saucerState?.isActive && 
+          hole.saucerState.ballId === ballId && 
+          hole.saucerState.phase === 'waiting') {
+        return 'ball_saucer';
+      }
+    }
+    
+    return 'ball_normal';
+  }
+
+  /**
+   * Test point fly-offs with various animations (debug function)
+   */
+  private testPointFlyOffs(): void {
+    logger.info('🧪 Testing point fly-offs...', null, 'Game');
+    
+    // Test different fly-off types at various positions
+    const testPositions = [
+      { x: 100, y: 200 },
+      { x: 180, y: 300 },
+      { x: 260, y: 400 },
+      { x: 50, y: 500 },
+      { x: 310, y: 150 }
+    ];
+
+    // Test goal hit
+    this.pointFlyOffManager.showGoalHit(500, testPositions[0]);
+    
+    // Test power-up collection with different colors
+    this.pointFlyOffManager.showPowerUpCollect(100, testPositions[1], '#ff6600');
+    this.pointFlyOffManager.showPowerUpCollect(150, testPositions[2], '#00ff88');
+    
+    // Test level complete
+    this.pointFlyOffManager.showLevelComplete(1000, testPositions[3]);
+    
+    // Test bonus and achievement
+    this.pointFlyOffManager.showBonus(250, testPositions[4]);
+    this.pointFlyOffManager.showAchievement(750, { x: 180, y: 100 });
+    
+    // Test combo
+    this.pointFlyOffManager.showCombo(300, { x: 280, y: 350 }, 2);
+    
+    logger.info('🧪 Point fly-offs test completed', null, 'Game');
+  }
+
+  /**
+   * Get the appropriate color for a power-up type for fly-off animations
+   */
+  private getPowerUpColor(powerUpType: PowerUpType): string {
+    switch (powerUpType) {
+      case PowerUpType.SLOW_MO_SURGE:
+        return '#00ffff'; // Cyan
+      case PowerUpType.MAGNETIC_GUIDE:
+        return '#ff00ff'; // Magenta
+      case PowerUpType.CIRCUIT_PATCH:
+        return '#00ff00'; // Green
+      case PowerUpType.OVERCLOCK_BOOST:
+        return '#ffaa00'; // Orange
+      case PowerUpType.SCAN_REVEAL:
+        return '#ffff00'; // Yellow
+      default:
+        return '#ff6600'; // Default orange
+    }
+  }
+
+  /**
+   * Handle scale changes from the ScalingManager
+   */
+  public onScaleChanged(newScale: number): void {
+    logger.debug(`🔄 Game scale changed to ${newScale}x`, null, 'Game');
+    
+    // Update canvas dimensions in renderer if needed
+    const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+    if (canvas && this.renderer) {
+      this.renderer.resize(canvas.width, canvas.height);
+    }
+    
+    // Additional scale change handling can be added here
+    // For example, updating UI elements or recalculating positions
   }
 }

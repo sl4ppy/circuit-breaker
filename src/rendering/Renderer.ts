@@ -84,7 +84,7 @@ export class Renderer {
   }
 
   /**
-   * Initialize the renderer with a canvas, set up high-DPI scaling and integer scaling for sharp rendering.
+   * Initialize the renderer with a canvas. Scaling is handled by ScalingManager.
    * @param canvas The HTMLCanvasElement to use for rendering.
    */
   public init(canvas: HTMLCanvasElement): void {
@@ -95,25 +95,17 @@ export class Renderer {
       throw new Error('Failed to get 2D context from canvas');
     }
 
-    // Device pixel ratio handling for sharp rendering
-    const dpr = window.devicePixelRatio || 1;
-    const displayWidth = 540; // 75% of 720
-    const displayHeight = 960; // 75% of 1280
-    // Set CSS size (visual size on page)
-    canvas.style.width = displayWidth + 'px';
-    canvas.style.height = displayHeight + 'px';
-    // Set internal buffer size for high-DPI
-    canvas.width = displayWidth * dpr;
-    canvas.height = displayHeight * dpr;
-    // Scale context for high-DPI
-    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    // Scale all drawing by 1.5x
-    this.ctx.scale(1.5, 1.5);
-
+    // Store canvas dimensions (these will be updated by ScalingManager)
     this.width = canvas.width;
     this.height = canvas.height;
 
-    Debug.log(`Renderer initialized with canvas: ${this.width}x${this.height} (dpr: ${dpr}, scale: 1.5x)`);
+    // The ScalingManager handles all scaling setup including:
+    // - Device pixel ratio scaling
+    // - Integer scaling for sharp fonts
+    // - Canvas size and display size
+    // - Context transformation matrix
+    
+    Debug.log(`Renderer initialized with canvas: ${this.width}x${this.height} (scaling handled by ScalingManager)`);
   }
 
   /**
@@ -518,11 +510,20 @@ export class Renderer {
 
     // Use sprite atlas if available, otherwise fallback to procedural rendering
     const atlasLoaded = spriteAtlas.isAtlasLoaded();
-    Debug.log(`🔍 Checking hole sprite: spritesLoaded=${this.spritesLoaded}, atlasLoaded=${atlasLoaded}`);
+    // Logging disabled to reduce spam
     if (this.spritesLoaded && atlasLoaded) {
       // Choose sprite based on hole type
       let spriteName: string;
-      if (isGoalHole) {
+      if (hole.animationState?.isAnimated) {
+        // Animated hole - use normal hole sprite with scale animation
+        spriteName = 'ball_whole_normal';
+        
+        // Don't render if in hidden phase or scale is essentially 0
+        if (hole.animationState.phase === 'hidden' || hole.animationState.currentScale < 0.001) {
+          this.ctx.restore();
+          return;
+        }
+      } else if (isGoalHole) {
         spriteName = 'ball_whole_powerup';
       } else if (isPowerUpHole) {
         // Use specific power-up sprites from the power-up atlas
@@ -540,10 +541,14 @@ export class Renderer {
       const frameData = spriteAtlas.getFrame(spriteName);
 
       if (frameData) {
-        Debug.log(`🎯 Drawing sprite: ${spriteName} from atlas: ${frameData.atlas}`);
         // Calculate scaling to fit the enlarged hole radius
         const targetSize = enlargedRadius * 2;
-        const spriteScale = targetSize / Math.max(frameData.frame.w, frameData.frame.h);
+        let spriteScale = targetSize / Math.max(frameData.frame.w, frameData.frame.h);
+        
+        // Apply animation scale for animated holes
+        if (hole.animationState?.isAnimated) {
+          spriteScale *= hole.animationState.currentScale;
+        }
 
         // Draw outer glow first (behind sprite) - only in debug mode
         if (debugMode) {
@@ -595,7 +600,6 @@ export class Renderer {
         // Power-up holes now use sprites instead of text icons
       } else {
         // Fallback to procedural rendering if sprite not found
-        Debug.log(`⚠️ Sprite not found: ${spriteName}, using fallback rendering`);
         this.renderHoleFallback(
           hole,
           isCompleted,
@@ -610,29 +614,36 @@ export class Renderer {
         );
       }
 
-              // Draw saucer effects if active
-        if (isSaucerActive && isPowerUpHole) {
-          this.drawSaucerEffects(centerX, centerY, enlargedRadius, activeColor, hole);
+      // Draw saucer effects if active
+      if (isSaucerActive && isPowerUpHole) {
+        this.drawSaucerEffects(centerX, centerY, enlargedRadius, activeColor, hole);
+      }
+    } else {
+      // Fallback to procedural rendering if atlas not loaded
+      
+              // Don't render animated holes if in hidden phase or scale is essentially 0
+        if (hole.animationState?.isAnimated && (hole.animationState.phase === 'hidden' || hole.animationState.currentScale < 0.001)) {
+          this.ctx.restore();
+          return;
         }
-      } else {
-        // Fallback to procedural rendering if atlas not loaded
-        this.renderHoleFallback(
-          hole,
-          isCompleted,
-          centerX,
-          centerY,
-          isGoalHole,
-          activeColor,
-          darkColor,
-          darkerColor,
-          debugMode,
-          enlargedRadius,
-        );
+      
+      this.renderHoleFallback(
+        hole,
+        isCompleted,
+        centerX,
+        centerY,
+        isGoalHole,
+        activeColor,
+        darkColor,
+        darkerColor,
+        debugMode,
+        enlargedRadius,
+      );
 
-        // Draw saucer effects if active
-        if (isSaucerActive && isPowerUpHole) {
-          this.drawSaucerEffects(centerX, centerY, enlargedRadius, activeColor, hole);
-        }
+      // Draw saucer effects if active
+      if (isSaucerActive && isPowerUpHole) {
+        this.drawSaucerEffects(centerX, centerY, enlargedRadius, activeColor, hole);
+      }
     }
 
     this.ctx.restore();
@@ -699,13 +710,37 @@ export class Renderer {
       this.ctx.fillText('✓', centerX, centerY + 4);
     } else {
       // Active hole - show glowing state
+      let glowIntensity = 1;
+      let scaleMultiplier = 1;
+      
+      // Special handling for animated holes
+      if (hole.animationState?.isAnimated) {
+        const animState = hole.animationState;
+        
+        // Use current scale for both size and glow intensity
+        scaleMultiplier = animState.currentScale;
+        glowIntensity = animState.currentScale;
+        
+        // Don't render if scale is essentially 0 or in hidden phase
+        if (animState.currentScale < 0.001 || animState.phase === 'hidden') {
+          return;
+        }
+        
+        // Use orange color for animated holes
+        activeColor = '#ff6600';
+        darkColor = '#441100';
+        darkerColor = '#220000';
+      }
+      
       this.ctx.shadowColor = activeColor;
-      this.ctx.shadowBlur = isGoalHole ? 15 : 10; // Stronger glow for goal holes
+      this.ctx.shadowBlur = (isGoalHole ? 15 : 10) * glowIntensity;
       this.ctx.fillStyle = activeColor;
-      this.ctx.globalAlpha = isGoalHole ? 0.8 : 0.6; // Brighter for goal holes
+      this.ctx.globalAlpha = (isGoalHole ? 0.8 : 0.6) * glowIntensity;
 
+      const scaledRadius = (enlargedRadius - 2) * scaleMultiplier;
+      
       this.ctx.beginPath();
-      this.ctx.arc(centerX, centerY, enlargedRadius - 2, 0, Math.PI * 2);
+      this.ctx.arc(centerX, centerY, scaledRadius, 0, Math.PI * 2);
       this.ctx.fill();
 
       this.ctx.globalAlpha = 1;
@@ -713,21 +748,31 @@ export class Renderer {
       // Draw inner dark area
       this.ctx.fillStyle = darkColor;
       this.ctx.beginPath();
-      this.ctx.arc(centerX, centerY, enlargedRadius / 2, 0, Math.PI * 2);
+      this.ctx.arc(centerX, centerY, (enlargedRadius / 2) * scaleMultiplier, 0, Math.PI * 2);
       this.ctx.fill();
 
       // Draw colored outline
       this.ctx.strokeStyle = activeColor;
       this.ctx.lineWidth = 2;
+      this.ctx.globalAlpha = glowIntensity;
       this.ctx.beginPath();
-      this.ctx.arc(centerX, centerY, enlargedRadius - 2, 0, Math.PI * 2);
+      this.ctx.arc(centerX, centerY, scaledRadius, 0, Math.PI * 2);
       this.ctx.stroke();
 
-      // Draw symbol - different for goal vs regular holes
+      this.ctx.globalAlpha = 1;
+
+      // Draw symbol - different for goal vs regular holes vs animated holes
       this.ctx.fillStyle = '#ffffff';
       this.ctx.font = '10px monospace';
       this.ctx.textAlign = 'center';
-      this.ctx.fillText(isGoalHole ? '🎯' : '●', centerX, centerY + 3);
+      this.ctx.globalAlpha = glowIntensity;
+      
+      if (hole.animationState?.isAnimated) {
+        // Animated hole gets special symbol
+        this.ctx.fillText('◉', centerX, centerY + 3);
+      } else {
+        this.ctx.fillText(isGoalHole ? '🎯' : '●', centerX, centerY + 3);
+      }
 
       // Add power-up icon if this is a power-up hole
       if (hole.powerUpType) {
@@ -743,7 +788,7 @@ export class Renderer {
         
         // Draw icon with glow effect
         this.ctx.shadowColor = activeColor;
-        this.ctx.shadowBlur = 8;
+        this.ctx.shadowBlur = 8 * glowIntensity;
         this.ctx.fillStyle = '#ffffff';
         this.ctx.font = '14px Interceptor';
         this.ctx.textAlign = 'center';
@@ -752,6 +797,8 @@ export class Renderer {
         // Reset shadow
         this.ctx.shadowBlur = 0;
       }
+      
+      this.ctx.globalAlpha = 1;
     }
   }
 
@@ -924,6 +971,7 @@ export class Renderer {
   public drawChromeBall(
     ball: { position: { x: number; y: number }; radius: number },
     animationState?: { scale: number; opacity: number },
+    spriteName: string = 'ball_normal',
   ): void {
     if (!this.ctx) return;
     
@@ -942,8 +990,10 @@ export class Renderer {
     const atlasLoaded = spriteAtlas.isAtlasLoaded();
     if (this.spritesLoaded && atlasLoaded) {
       // Draw sprite-based ball from atlas
-      const targetSize = radius * 2 * scale;
-      const spriteFrame = spriteAtlas.getFrame('ball_normal');
+      // Apply 10% size reduction for saucer sprite
+      const saucerSizeMultiplier = spriteName === 'ball_saucer' ? 0.9 : 1.0;
+      const targetSize = radius * 2 * scale * saucerSizeMultiplier;
+      const spriteFrame = spriteAtlas.getFrame(spriteName);
 
       if (spriteFrame) {
         // Calculate scale to fit the ball size (64x64 sprite to ball diameter)
@@ -964,14 +1014,16 @@ export class Renderer {
         // Draw the ball sprite from atlas, centered on ball position
         spriteAtlas.drawSprite(
           this.ctx,
-          'ball_normal',
+          spriteName,
           x - targetSize / 2, // Center horizontally
           y - targetSize / 2, // Center vertically
           spriteScale, // Scale factor to match ball size
         );
       } else {
         // Fallback if sprite not found - render procedurally inline
-        const scaledRadius = radius * scale;
+        // Apply 10% size reduction for saucer sprite
+        const saucerSizeMultiplier = spriteName === 'ball_saucer' ? 0.9 : 1.0;
+        const scaledRadius = radius * scale * saucerSizeMultiplier;
 
         // Create main ball gradient (chrome base)
         const mainGradient = this.ctx.createRadialGradient(
@@ -1021,7 +1073,9 @@ export class Renderer {
       }
     } else {
       // Fallback to procedural chrome rendering
-      const scaledRadius = radius * scale;
+      // Apply 10% size reduction for saucer sprite
+      const saucerSizeMultiplier = spriteName === 'ball_saucer' ? 0.9 : 1.0;
+      const scaledRadius = radius * scale * saucerSizeMultiplier;
 
       // Create main ball gradient (chrome base)
       const mainGradient = this.ctx.createRadialGradient(

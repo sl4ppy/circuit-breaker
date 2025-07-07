@@ -1,22 +1,13 @@
 // Circuit Breaker - Power-Up Management System
-// Handles power-up states, effects, and persistence
+// Handles power-up states, effects, and persistence with event-driven architecture
 
 import { logger } from '../utils/Logger';
+import { getPowerUpConfig, getBallTypeConfig, getUpgradeConfig } from './PowerUpConfig';
+import { PowerUpEventSystem } from './PowerUpEventSystem';
+import { PowerUpType, BallType } from './PowerUpTypes';
 
-export enum PowerUpType {
-  SLOW_MO_SURGE = 'slow_mo_surge',
-  MAGNETIC_GUIDE = 'magnetic_guide',
-  CIRCUIT_PATCH = 'circuit_patch',
-  OVERCLOCK_BOOST = 'overclock_boost',
-  SCAN_REVEAL = 'scan_reveal',
-}
-
-export enum BallType {
-  STANDARD = 'standard',
-  HEAVY = 'heavy',
-  LIGHT = 'light',
-  NEON_SPLIT = 'neon_split',
-}
+// Re-export for backwards compatibility
+export { PowerUpType, BallType };
 
 export interface PowerUpState {
   type: PowerUpType;
@@ -51,43 +42,35 @@ export class PowerUpManager {
   private powerUpEffects: PowerUpEffect = {};
   private upgradeProgress: UpgradeProgress;
   private currentTime: number = 0;
+  private eventSystem: PowerUpEventSystem;
+  
+  // Validation and error handling
+  private lastValidation: { [key: string]: boolean } = {};
+  private validationErrors: string[] = [];
 
-  // Power-up configurations
-  private readonly POWER_UP_CONFIGS: Record<PowerUpType, {
-    baseDuration: number;
-    baseCharges: number;
-    timeScale?: number;
-    magneticForce?: number;
-    barSpeedMultiplier?: number;
-  }> = {
-    [PowerUpType.SLOW_MO_SURGE]: {
-      baseDuration: 5000, // 5 seconds (longer duration)
-      baseCharges: 1,
-      timeScale: 0.3, // 30% speed - more reasonable with proper time scaling
-    },
-    [PowerUpType.MAGNETIC_GUIDE]: {
-      baseDuration: 5000, // 5 seconds
-      baseCharges: 1,
-      magneticForce: 0.3,
-    },
-    [PowerUpType.CIRCUIT_PATCH]: {
-      baseDuration: -1, // Permanent until used
-      baseCharges: 1,
-    },
-    [PowerUpType.OVERCLOCK_BOOST]: {
-      baseDuration: 4000, // 4 seconds
-      baseCharges: 1,
-      barSpeedMultiplier: 1.5,
-    },
-    [PowerUpType.SCAN_REVEAL]: {
-      baseDuration: 3000, // 3 seconds
-      baseCharges: 1,
-    },
-  };
-
-  constructor() {
+  constructor(eventSystem?: PowerUpEventSystem) {
+    this.eventSystem = eventSystem || new PowerUpEventSystem();
     this.upgradeProgress = this.createDefaultUpgradeProgress();
-    logger.info('⚡ PowerUpManager initialized', null, 'PowerUpManager');
+    this.initializeEventHandlers();
+    logger.info('⚡ PowerUpManager initialized with event system', null, 'PowerUpManager');
+  }
+
+  /**
+   * Initialize event handlers for power-up lifecycle
+   */
+  private initializeEventHandlers(): void {
+    // Register global callbacks for logging and stats
+    this.eventSystem.registerGlobalCallbacks({
+      onActivated: (data) => {
+        logger.info(`⚡ Power-up activated: ${data.type}`, null, 'PowerUpManager');
+      },
+      onDeactivated: (data) => {
+        logger.info(`⚡ Power-up deactivated: ${data.type}`, null, 'PowerUpManager');
+      },
+      onExpired: (data) => {
+        logger.info(`⚡ Power-up expired: ${data.type}`, null, 'PowerUpManager');
+      },
+    });
   }
 
   /**
@@ -113,6 +96,7 @@ export class PowerUpManager {
     this.currentTime += deltaTime;
     this.updateActivePowerUps();
     this.calculateCombinedEffects();
+    this.validateState();
   }
 
   /**
@@ -131,7 +115,7 @@ export class PowerUpManager {
     });
 
     expiredPowerUps.forEach(type => {
-      this.deactivatePowerUp(type);
+      this.expirePowerUp(type);
     });
   }
 
@@ -142,7 +126,7 @@ export class PowerUpManager {
     // Reset effects
     this.powerUpEffects = {};
 
-    // Apply effects from active power-ups
+    // Apply effects from active power-ups using centralized config
     this.activePowerUps.forEach((state, type) => {
       if (state.isActive) {
         this.applyPowerUpEffect(type);
@@ -151,23 +135,27 @@ export class PowerUpManager {
   }
 
   /**
-   * Apply individual power-up effect
+   * Apply individual power-up effect using centralized configuration
    */
   private applyPowerUpEffect(type: PowerUpType): void {
-    const config = this.POWER_UP_CONFIGS[type];
+    const config = getPowerUpConfig(type);
+    const physics = config.physics;
 
+    // Apply effects based on configuration
+    if (physics.timeScale !== undefined) {
+      this.powerUpEffects.timeScale = physics.timeScale;
+    }
+    if (physics.magneticForce !== undefined) {
+      this.powerUpEffects.magneticForce = physics.magneticForce;
+    }
+    if (physics.barSpeedMultiplier !== undefined) {
+      this.powerUpEffects.barSpeedMultiplier = physics.barSpeedMultiplier;
+    }
+
+    // Special cases
     switch (type) {
-      case PowerUpType.SLOW_MO_SURGE:
-        this.powerUpEffects.timeScale = config.timeScale;
-        break;
-      case PowerUpType.MAGNETIC_GUIDE:
-        this.powerUpEffects.magneticForce = config.magneticForce;
-        break;
       case PowerUpType.CIRCUIT_PATCH:
         this.powerUpEffects.shieldActive = true;
-        break;
-      case PowerUpType.OVERCLOCK_BOOST:
-        this.powerUpEffects.barSpeedMultiplier = config.barSpeedMultiplier;
         break;
       case PowerUpType.SCAN_REVEAL:
         this.powerUpEffects.scanActive = true;
@@ -176,22 +164,50 @@ export class PowerUpManager {
   }
 
   /**
-   * Activate a power-up
+   * Activate a power-up with validation and events
    */
   public activatePowerUp(type: PowerUpType): boolean {
-    const state = this.activePowerUps.get(type);
-    if (!state || state.charges <= 0) {
+    // Validate power-up type
+    if (!this.validatePowerUpType(type)) {
+      logger.error(`❌ Invalid power-up type: ${type}`, null, 'PowerUpManager');
       return false;
+    }
+
+    const state = this.activePowerUps.get(type);
+    if (!state) {
+      logger.error(`❌ Power-up state not found: ${type}`, null, 'PowerUpManager');
+      return false;
+    }
+
+    if (state.charges <= 0) {
+      logger.warn(`⚠️ No charges available for: ${type}`, null, 'PowerUpManager');
+      return false;
+    }
+
+    // Deactivate if already active (refresh)
+    if (state.isActive) {
+      this.deactivatePowerUp(type);
     }
 
     // Use a charge
     state.charges--;
+    this.eventSystem.emitChargeUsed(type, state);
 
     // Activate the power-up
     state.isActive = true;
     state.startTime = this.currentTime;
 
-    logger.info(`⚡ Power-up activated: ${type}`, null, 'PowerUpManager');
+    // Update duration from config (may have been upgraded)
+    const config = getPowerUpConfig(type);
+    state.duration = this.getUpgradedDuration(type, config.baseDuration);
+
+    // Emit activation event
+    this.eventSystem.emitActivated(type, state, {
+      duration: state.duration,
+      remainingCharges: state.charges,
+    });
+
+    logger.info(`⚡ Power-up activated: ${type} (${state.charges} charges remaining)`, null, 'PowerUpManager');
     return true;
   }
 
@@ -200,21 +216,56 @@ export class PowerUpManager {
    */
   public deactivatePowerUp(type: PowerUpType): void {
     const state = this.activePowerUps.get(type);
-    if (state) {
+    if (state && state.isActive) {
       state.isActive = false;
+      
+      // Emit deactivation event
+      this.eventSystem.emitDeactivated(type, state);
+      
       logger.info(`⚡ Power-up deactivated: ${type}`, null, 'PowerUpManager');
     }
   }
 
   /**
-   * Add charges to a power-up
+   * Expire a power-up (when duration runs out)
    */
-  public addCharges(type: PowerUpType, amount: number = 1): void {
+  private expirePowerUp(type: PowerUpType): void {
     const state = this.activePowerUps.get(type);
-    if (state) {
-      state.charges = Math.min(state.charges + amount, state.maxCharges);
-      logger.info(`⚡ Added ${amount} charges to ${type}`, null, 'PowerUpManager');
+    if (state && state.isActive) {
+      state.isActive = false;
+      
+      // Emit expiration event
+      this.eventSystem.emitExpired(type, state);
+      
+      logger.info(`⚡ Power-up expired: ${type}`, null, 'PowerUpManager');
     }
+  }
+
+  /**
+   * Add charges to a power-up with validation
+   */
+  public addCharges(type: PowerUpType, amount: number = 1): boolean {
+    if (!this.validatePowerUpType(type)) {
+      return false;
+    }
+
+    const state = this.activePowerUps.get(type);
+    if (!state) {
+      logger.error(`❌ Power-up state not found: ${type}`, null, 'PowerUpManager');
+      return false;
+    }
+
+    const oldCharges = state.charges;
+    state.charges = Math.min(state.charges + amount, state.maxCharges);
+    const actualAdded = state.charges - oldCharges;
+
+    if (actualAdded > 0) {
+      this.eventSystem.emitChargeAdded(type, state, actualAdded);
+      logger.info(`⚡ Added ${actualAdded} charges to ${type} (${state.charges}/${state.maxCharges})`, null, 'PowerUpManager');
+      return true;
+    }
+
+    return false;
   }
 
   /**
@@ -252,9 +303,9 @@ export class PowerUpManager {
   public initializeRun(): void {
     this.activePowerUps.clear();
 
-    // Initialize each power-up type with ZERO charges for new games
+    // Initialize each power-up type using centralized config
     Object.values(PowerUpType).forEach(type => {
-      const config = this.POWER_UP_CONFIGS[type];
+      const config = getPowerUpConfig(type);
       
       this.activePowerUps.set(type, {
         type,
@@ -262,27 +313,57 @@ export class PowerUpManager {
         startTime: 0,
         duration: config.baseDuration,
         charges: 0, // Start with zero charges
-        maxCharges: 0, // Start with zero max charges
+        maxCharges: this.getUpgradedMaxCharges(type, config.baseCharges),
       });
     });
+
+    // Clear validation errors
+    this.validationErrors = [];
+    this.lastValidation = {};
 
     logger.info('⚡ Power-ups initialized for new run (zero charges)', null, 'PowerUpManager');
   }
 
   /**
-   * Get max charges for a power-up type based on upgrades
-   * Currently unused but kept for future upgrade system
+   * Get upgraded duration for a power-up
    */
-  // private getMaxChargesForType(type: PowerUpType): number {
-  //   switch (type) {
-  //     case PowerUpType.SLOW_MO_SURGE:
-  //       return this.upgradeProgress.slowMoCharges;
-  //     case PowerUpType.CIRCUIT_PATCH:
-  //       return this.upgradeProgress.shieldLevel;
-  //     default:
-  //       return this.POWER_UP_CONFIGS[type].baseCharges;
-  //   }
-  // }
+  private getUpgradedDuration(type: PowerUpType, baseDuration: number): number {
+    const config = getPowerUpConfig(type);
+    const multiplier = config.upgradeScaling.durationMultiplier || 1.0;
+    
+    // Apply upgrade multiplier based on upgrade progress
+    let upgradeLevel = 0;
+    switch (type) {
+      case PowerUpType.SLOW_MO_SURGE:
+        upgradeLevel = this.upgradeProgress.slowMoCharges;
+        break;
+      // Add other upgrade types as needed
+    }
+    
+    return baseDuration * Math.pow(multiplier, upgradeLevel);
+  }
+
+  /**
+   * Get upgraded max charges for a power-up
+   */
+  private getUpgradedMaxCharges(type: PowerUpType, baseCharges: number): number {
+    const config = getPowerUpConfig(type);
+    const multiplier = config.upgradeScaling.chargesMultiplier || 1.0;
+    
+    // Apply upgrade multiplier based on upgrade progress
+    let upgradeLevel = 0;
+    switch (type) {
+      case PowerUpType.SLOW_MO_SURGE:
+        upgradeLevel = this.upgradeProgress.slowMoCharges;
+        break;
+      case PowerUpType.CIRCUIT_PATCH:
+        upgradeLevel = this.upgradeProgress.shieldLevel;
+        break;
+      // Add other upgrade types as needed
+    }
+    
+    return Math.floor(baseCharges * Math.pow(multiplier, upgradeLevel));
+  }
 
   /**
    * Get upgrade progress
@@ -295,8 +376,29 @@ export class PowerUpManager {
    * Update upgrade progress
    */
   public updateUpgradeProgress(updates: Partial<UpgradeProgress>): void {
+    const oldProgress = { ...this.upgradeProgress };
     this.upgradeProgress = { ...this.upgradeProgress, ...updates };
+    
+    // Update max charges for affected power-ups
+    this.updateMaxChargesFromUpgrades();
+    
     logger.info('⚡ Upgrade progress updated', null, 'PowerUpManager');
+  }
+
+  /**
+   * Update max charges based on current upgrades
+   */
+  private updateMaxChargesFromUpgrades(): void {
+    this.activePowerUps.forEach((state, type) => {
+      const config = getPowerUpConfig(type);
+      const newMaxCharges = this.getUpgradedMaxCharges(type, config.baseCharges);
+      
+      if (state.maxCharges !== newMaxCharges) {
+        state.maxCharges = newMaxCharges;
+        // If current charges exceed new max, keep them (don't reduce)
+        logger.debug(`⚡ Updated max charges for ${type}: ${newMaxCharges}`, null, 'PowerUpManager');
+      }
+    });
   }
 
   /**
@@ -313,6 +415,8 @@ export class PowerUpManager {
     if (this.upgradeProgress.unlockedBallTypes.includes(ballType)) {
       this.upgradeProgress.currentBallType = ballType;
       logger.info(`⚡ Ball type changed to: ${ballType}`, null, 'PowerUpManager');
+    } else {
+      logger.warn(`⚠️ Ball type not unlocked: ${ballType}`, null, 'PowerUpManager');
     }
   }
 
@@ -330,6 +434,8 @@ export class PowerUpManager {
     if (this.upgradeProgress.unlockedThemes.includes(theme)) {
       this.upgradeProgress.currentTheme = theme;
       logger.info(`⚡ Theme changed to: ${theme}`, null, 'PowerUpManager');
+    } else {
+      logger.warn(`⚠️ Theme not unlocked: ${theme}`, null, 'PowerUpManager');
     }
   }
 
@@ -361,36 +467,8 @@ export class PowerUpManager {
     friction: number;
     restitution: number;
   } {
-    const baseMass = 6;
-    const baseFriction = 0.18;
-    const baseRestitution = 0.65;
-
-    switch (this.upgradeProgress.currentBallType) {
-      case BallType.HEAVY:
-        return {
-          mass: baseMass * 1.5,
-          friction: baseFriction * 1.2,
-          restitution: baseRestitution * 0.8,
-        };
-      case BallType.LIGHT:
-        return {
-          mass: baseMass * 0.7,
-          friction: baseFriction * 0.6,
-          restitution: baseRestitution * 1.1,
-        };
-      case BallType.NEON_SPLIT:
-        return {
-          mass: baseMass * 0.9,
-          friction: baseFriction * 0.9,
-          restitution: baseRestitution,
-        };
-      default:
-        return {
-          mass: baseMass,
-          friction: baseFriction,
-          restitution: baseRestitution,
-        };
-    }
+    const ballConfig = getBallTypeConfig(this.upgradeProgress.currentBallType);
+    return { ...ballConfig.physics };
   }
 
   /**
@@ -398,7 +476,8 @@ export class PowerUpManager {
    */
   public getBarSpeedMultiplier(): number {
     const baseMultiplier = 1.0;
-    const upgradeMultiplier = 1.0 + (this.upgradeProgress.barSpeedLevel * 0.1);
+    const upgradeConfig = getUpgradeConfig('barSpeedLevel');
+    const upgradeMultiplier = upgradeConfig.effects.speedMultiplier?.[this.upgradeProgress.barSpeedLevel] || 1.0;
     const powerUpMultiplier = this.powerUpEffects.barSpeedMultiplier || 1.0;
     
     return baseMultiplier * upgradeMultiplier * powerUpMultiplier;
@@ -409,7 +488,9 @@ export class PowerUpManager {
    */
   public getFrictionModifier(): number {
     const baseFriction = 1.0;
-    const upgradeModifier = 1.0 - (this.upgradeProgress.frictionLevel * 0.05);
+    const upgradeConfig = getUpgradeConfig('frictionLevel');
+    const upgradeModifier = upgradeConfig.effects.frictionModifier?.[this.upgradeProgress.frictionLevel] || 1.0;
+    
     return baseFriction * upgradeModifier;
   }
 
@@ -421,10 +502,86 @@ export class PowerUpManager {
     if (state && state.charges > 0) {
       state.charges--;
       state.isActive = false;
+      
+      this.eventSystem.emitChargeUsed(PowerUpType.CIRCUIT_PATCH, state, { shieldUsed: true });
       logger.info('🛡️ Shield used', null, 'PowerUpManager');
       return true;
     }
     return false;
+  }
+
+  /**
+   * Validate power-up type
+   */
+  private validatePowerUpType(type: PowerUpType): boolean {
+    const isValid = Object.values(PowerUpType).includes(type);
+    if (!isValid) {
+      this.validationErrors.push(`Invalid power-up type: ${type}`);
+    }
+    return isValid;
+  }
+
+  /**
+   * Validate current state
+   */
+  private validateState(): void {
+    // Clear old validation errors
+    this.validationErrors = [];
+    
+    // Validate each power-up state
+    this.activePowerUps.forEach((state, type) => {
+      if (state.charges < 0) {
+        this.validationErrors.push(`Negative charges for ${type}: ${state.charges}`);
+      }
+      if (state.charges > state.maxCharges) {
+        this.validationErrors.push(`Charges exceed max for ${type}: ${state.charges}/${state.maxCharges}`);
+      }
+      if (state.isActive && state.duration > 0) {
+        const elapsed = this.currentTime - state.startTime;
+        if (elapsed < 0) {
+          this.validationErrors.push(`Negative elapsed time for ${type}: ${elapsed}`);
+        }
+      }
+    });
+    
+    // Log validation errors
+    if (this.validationErrors.length > 0) {
+      logger.error(`❌ Validation errors: ${this.validationErrors.join(', ')}`, null, 'PowerUpManager');
+    }
+  }
+
+  /**
+   * Get validation errors
+   */
+  public getValidationErrors(): string[] {
+    return [...this.validationErrors];
+  }
+
+  /**
+   * Get event system for external access
+   */
+  public getEventSystem(): PowerUpEventSystem {
+    return this.eventSystem;
+  }
+
+  /**
+   * Get usage statistics
+   */
+  public getUsageStatistics(): {
+    totalActivations: number;
+    activationsByType: Record<string, number>;
+    averageActivationTime: number;
+    mostUsedPowerUp: PowerUpType | null;
+    currentActiveCount: number;
+  } {
+    const stats = this.eventSystem.getUsageStatistics();
+    const currentActiveCount = Array.from(this.activePowerUps.values())
+      .filter(state => state.isActive).length;
+    
+    return {
+      ...stats,
+      currentActiveCount,
+    };
   }
 
   /**
@@ -434,6 +591,10 @@ export class PowerUpManager {
     this.activePowerUps.clear();
     this.powerUpEffects = {};
     this.currentTime = 0;
+    this.validationErrors = [];
+    this.lastValidation = {};
+    this.eventSystem.clearHistory();
+    
     logger.info('⚡ PowerUpManager reset', null, 'PowerUpManager');
   }
 } 

@@ -15,6 +15,7 @@
 - **Realistic Pinball Physics**: Heavy steel ball with authentic weight and bounce
 - **Tilting Bar Control**: Independent left/right bar movement for precise navigation
 - **Level Progression**: Multi-goal system with increasing difficulty
+- **Animated Holes System**: Dynamic holes that appear/disappear with spring animation (v1.0.0)
 - **Power-Up Saucer System**: Pinball-style saucers that collect balls and grant power-ups
 - **Dynamic Audio Feedback**: Velocity-based sound effects for all interactions
 

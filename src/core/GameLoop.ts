@@ -322,7 +322,13 @@ export class GameLoop {
               this.game && this.game.getHoleAnimationState
                 ? this.game.getHoleAnimationState() || undefined
                 : undefined;
-            this.renderer.drawChromeBall(obj, animationState);
+            
+            // Check if ball is in saucer waiting state to determine sprite
+            const spriteName = this.game && this.game.getBallSpriteForSaucerState
+              ? this.game.getBallSpriteForSaucerState(obj.id)
+              : 'ball_normal';
+            
+            this.renderer.drawChromeBall(obj, animationState, spriteName);
           }
 
           // Debug info for balls - only show if debug mode is enabled

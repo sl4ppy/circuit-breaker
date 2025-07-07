@@ -113,7 +113,6 @@ export class SpriteAtlas {
     // Search through all atlases
     for (const [atlasName, atlas] of this.atlases) {
       if (atlas.data.frames[spriteName]) {
-        Debug.log(`✅ Found sprite ${spriteName} in atlas ${atlasName}`);
         return { frame: atlas.data.frames[spriteName], atlas: atlasName };
       }
     }
@@ -132,19 +131,16 @@ export class SpriteAtlas {
     scale: number = 1,
   ): boolean {
     if (!this.isLoaded) {
-      Debug.log(`⚠️ Cannot draw sprite ${spriteName}: atlases not loaded`);
       return false;
     }
 
     const frameData = this.getFrame(spriteName);
     if (!frameData) {
-      Debug.log(`⚠️ Sprite not found: ${spriteName}`);
       return false;
     }
 
     const atlas = this.atlases.get(frameData.atlas);
     if (!atlas) {
-      Debug.log(`⚠️ Atlas not found: ${frameData.atlas}`);
       return false;
     }
 

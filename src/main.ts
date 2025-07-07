@@ -4,9 +4,11 @@
 import './style.css';
 import { Game } from './core/Game';
 import { logger } from './utils/Logger';
+import { ScalingManager } from './utils/ScalingManager';
 
 // Global game instance
 let game: Game | null = null;
+let scalingManager: ScalingManager | null = null;
 
 /**
  * Initialize the game when DOM is ready
@@ -21,13 +23,23 @@ async function initGame(): Promise<void> {
       throw new Error('Game container not found');
     }
 
+    // Initialize scaling manager with game's base dimensions
+    scalingManager = ScalingManager.getInstance({
+      baseWidth: 360,  // Game's base width (9:16 aspect ratio)
+      baseHeight: 640, // Game's base height
+      minScale: 1,     // Minimum scale factor
+      maxScale: 8,     // Maximum scale factor (for very large displays)
+      forceIntegerScaling: true // Keep fonts crisp with integer scaling
+    });
+
     // Clear loading message and create canvas
     gameContainer.innerHTML = '';
     const canvas = document.createElement('canvas');
     canvas.id = 'game-canvas';
-    canvas.width = 360; // 9:16 aspect ratio (mobile portrait)
-    canvas.height = 640;
     gameContainer.appendChild(canvas);
+
+    // Apply dynamic scaling to the canvas
+    scalingManager.applyScaling(canvas, gameContainer);
 
     // Create game instance
     game = new Game();
@@ -38,8 +50,12 @@ async function initGame(): Promise<void> {
     // Start the game
     game.start();
 
+    // Setup resize handling
+    setupScalingCallbacks();
+
     // Expose game instance to window for testing
     (window as any).game = game;
+    (window as any).scalingManager = scalingManager;
 
     logger.info('✅ Circuit Breaker loaded successfully', null, 'Main');
   } catch (error) {
@@ -65,11 +81,37 @@ function showErrorMessage(message: string): void {
 }
 
 /**
+ * Setup scaling callbacks for dynamic resize handling
+ */
+function setupScalingCallbacks(): void {
+  if (!scalingManager) return;
+
+  scalingManager.onResize((scaling) => {
+    logger.debug(`📱 Window resized - applying ${scaling.scale}x scaling`, null, 'Main');
+    
+    // Get canvas and container
+    const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+    const gameContainer = document.getElementById('game-container');
+    
+    if (canvas && gameContainer) {
+      // Reapply scaling to canvas
+      scalingManager!.applyScaling(canvas, gameContainer);
+      
+      // Notify game of scale change if needed
+      if (game) {
+        game.onScaleChanged?.(scaling.scale);
+      }
+    }
+  });
+}
+
+/**
  * Handle window resize
  */
 function handleResize(): void {
-  // TODO: Handle canvas resize and UI adjustments
-  logger.debug('📱 Window resized', null, 'Main');
+  // The ScalingManager handles resize automatically through its event listeners
+  // This function is kept for compatibility but the actual work is done in setupScalingCallbacks
+  logger.debug('📱 Window resize event triggered', null, 'Main');
 }
 
 /**

@@ -152,4 +152,25 @@ export class MathUtils {
   public static easeOut(t: number): number {
     return t * (2 - t);
   }
+
+  /**
+   * Spring easing function with overshoot - creates a bouncy "spring" effect
+   */
+  public static easeSpring(t: number): number {
+    const s = 1.70158; // Back easing overshoot amount
+    return t * t * ((s + 1) * t - s);
+  }
+
+  /**
+   * Elastic easing function - creates a spring-like bouncing effect
+   */
+  public static easeElastic(t: number): number {
+    if (t === 0) return 0;
+    if (t === 1) return 1;
+    
+    const p = 0.3;
+    const s = p / 4;
+    
+    return Math.pow(2, -10 * t) * Math.sin((t - s) * (2 * Math.PI) / p) + 1;
+  }
 }

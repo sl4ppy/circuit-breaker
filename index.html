@@ -19,14 +19,16 @@
       #game-container {
         width: 100vw;
         height: 100vh;
-        display: flex;
-        justify-content: center;
-        align-items: center;
+        position: relative;
+        overflow: hidden;
       }
       
       #game-canvas {
         border: 2px solid #00f0ff;
         background: #1a1a1a;
+        image-rendering: pixelated;
+        image-rendering: -moz-crisp-edges;
+        image-rendering: crisp-edges;
       }
       
       .loading {

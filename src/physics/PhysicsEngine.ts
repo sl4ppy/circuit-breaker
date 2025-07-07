@@ -260,10 +260,23 @@ export class PhysicsEngine {
         // Get target position for held ball
         const targetPos = this.getHeldBallTarget(obj.id);
         if (targetPos) {
-          // Smoothly move ball to target position
-          const smoothingFactor = 0.1; // Smooth movement
-          obj.position.x += (targetPos.x - obj.position.x) * smoothingFactor;
-          obj.position.y += (targetPos.y - obj.position.y) * smoothingFactor;
+          // Check if ball is in sinking phase for more aggressive movement
+          const isSinking = this.isBallSinking && this.isBallSinking(obj.id);
+          
+          if (isSinking) {
+            // During sinking: aggressive movement toward hole, allow natural falling
+            const aggressiveFactor = 0.15; // Faster convergence during sinking
+            const fallGravity = 0.3; // Additional downward force during sinking
+            
+            // Move toward hole center aggressively
+            obj.position.x += (targetPos.x - obj.position.x) * aggressiveFactor;
+            obj.position.y += (targetPos.y - obj.position.y) * aggressiveFactor + fallGravity;
+          } else {
+            // In waiting/ejecting phases: smooth movement
+            const smoothingFactor = 0.1; // Smooth movement
+            obj.position.x += (targetPos.x - obj.position.x) * smoothingFactor;
+            obj.position.y += (targetPos.y - obj.position.y) * smoothingFactor;
+          }
         }
         
         // Keep ball in place by maintaining consistent previous position
@@ -793,6 +806,14 @@ export class PhysicsEngine {
    */
   public isBallHeld(_ballId: string): boolean {
     // This will be called from the Game class to check saucer state
+    return false; // Default implementation - Game class will override this
+  }
+
+  /**
+   * Check if a ball is currently sinking into a saucer
+   */
+  public isBallSinking(_ballId: string): boolean {
+    // This will be called from the Game class to check sinking state
     return false; // Default implementation - Game class will override this
   }
 
