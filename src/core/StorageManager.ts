@@ -2,16 +2,17 @@
 // Handles save/load operations, data validation, and error recovery
 
 import { logger } from '../utils/Logger';
+import { LevelScoreData, ScoreSession } from './UnifiedScoringSystem';
 
 export interface GameProgress {
   version: string;
   lastSaved: number;
   currentLevel: number;
   highestLevel: number;
-  totalScore: number;
+  totalScore: number; // Legacy score field - kept for compatibility
   lives: number;
   completedLevels: Set<number>;
-  highScores: Map<number, number>; // level -> score
+  highScores: Map<number, number>; // level -> score (legacy)
   achievements: Set<string>;
   settings: {
     masterVolume: number;
@@ -23,6 +24,11 @@ export interface GameProgress {
   gamesPlayed: number;
   totalBallsLost: number;
   totalGoalsReached: number;
+  // New unified scoring system data
+  unifiedTotalScore?: number; // Total score from unified scoring system
+  scoreSessions?: ScoreSession[]; // Historical scoring sessions
+  bestLevelScores?: Map<number, LevelScoreData>; // level -> best score data
+  allTimeHighScore?: number; // Best unified total score ever achieved
 }
 
 export interface SaveSlot {
@@ -70,6 +76,11 @@ export class StorageManager {
       gamesPlayed: 0,
       totalBallsLost: 0,
       totalGoalsReached: 0,
+      // Initialize new unified scoring fields
+      unifiedTotalScore: 0,
+      scoreSessions: [],
+      bestLevelScores: new Map(),
+      allTimeHighScore: 0,
     };
   }
 
@@ -286,6 +297,9 @@ export class StorageManager {
       completedLevels: Array.from(progress.completedLevels),
       highScores: Object.fromEntries(progress.highScores),
       achievements: Array.from(progress.achievements),
+      // Serialize new unified scoring data
+      bestLevelScores: progress.bestLevelScores ? Object.fromEntries(progress.bestLevelScores) : {},
+      scoreSessions: progress.scoreSessions || [],
     };
   }
 
@@ -298,6 +312,11 @@ export class StorageManager {
       completedLevels: new Set(data.completedLevels || []),
       highScores: new Map(Object.entries(data.highScores || {})),
       achievements: new Set(data.achievements || []),
+      // Deserialize new unified scoring data
+      bestLevelScores: data.bestLevelScores ? new Map(Object.entries(data.bestLevelScores)) : new Map(),
+      scoreSessions: data.scoreSessions || [],
+      unifiedTotalScore: data.unifiedTotalScore || 0,
+      allTimeHighScore: data.allTimeHighScore || 0,
     };
   }
 
@@ -358,6 +377,77 @@ export class StorageManager {
     } catch (error) {
       logger.error('❌ Failed to update save slot metadata:', error, 'StorageManager');
     }
+  }
+
+  /**
+   * Update unified scoring data in progress
+   */
+  public updateUnifiedScoringData(
+    progress: GameProgress, 
+    scoreSession: ScoreSession, 
+    levelScores: LevelScoreData[]
+  ): void {
+    // Update unified total score
+    progress.unifiedTotalScore = scoreSession.totalScore;
+    
+    // Update all-time high score
+    if (scoreSession.totalScore > (progress.allTimeHighScore || 0)) {
+      progress.allTimeHighScore = scoreSession.totalScore;
+      logger.info(`🏆 New all-time high score: ${scoreSession.totalScore.toFixed(1)}`, null, 'StorageManager');
+    }
+    
+    // Add this session to history
+    if (!progress.scoreSessions) progress.scoreSessions = [];
+    progress.scoreSessions.push(scoreSession);
+    
+    // Keep only the last 10 sessions to manage storage
+    if (progress.scoreSessions.length > 10) {
+      progress.scoreSessions = progress.scoreSessions.slice(-10);
+    }
+    
+    // Update best scores for each level
+    if (!progress.bestLevelScores) progress.bestLevelScores = new Map();
+    
+    for (const levelScore of levelScores) {
+      const currentBest = progress.bestLevelScores.get(levelScore.levelId);
+      if (!currentBest || levelScore.levelPoints > currentBest.levelPoints) {
+        progress.bestLevelScores.set(levelScore.levelId, levelScore);
+        logger.info(`🎯 New best score for Level ${levelScore.levelId}: ${levelScore.levelPoints.toFixed(1)}`, null, 'StorageManager');
+      }
+    }
+  }
+
+  /**
+   * Get best level score for a specific level
+   */
+  public getBestLevelScore(progress: GameProgress, levelId: number): LevelScoreData | null {
+    if (!progress.bestLevelScores) return null;
+    return progress.bestLevelScores.get(levelId) || null;
+  }
+
+  /**
+   * Get unified scoring statistics
+   */
+  public getUnifiedScoringStats(progress: GameProgress): {
+    allTimeHighScore: number;
+    averageSessionScore: number;
+    totalSessions: number;
+    bestLevelCount: number;
+  } {
+    const allTimeHighScore = progress.allTimeHighScore || 0;
+    const sessions = progress.scoreSessions || [];
+    const totalSessions = sessions.length;
+    const averageSessionScore = totalSessions > 0 
+      ? sessions.reduce((sum, session) => sum + session.totalScore, 0) / totalSessions 
+      : 0;
+    const bestLevelCount = progress.bestLevelScores ? progress.bestLevelScores.size : 0;
+    
+    return {
+      allTimeHighScore,
+      averageSessionScore,
+      totalSessions,
+      bestLevelCount,
+    };
   }
 
   /**

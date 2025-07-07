@@ -20,7 +20,9 @@ export enum PointType {
   LEVEL_COMPLETE = 'level',
   BONUS = 'bonus',
   ACHIEVEMENT = 'achievement',
-  COMBO = 'combo'
+  COMBO = 'combo',
+  TIME_BONUS = 'time_bonus',
+  SAUCER_WAITING = 'saucer_waiting'
 }
 
 export class PointFlyOff {
@@ -209,14 +211,15 @@ export class PointFlyOff {
     ctx.shadowOffsetX = 1;
     ctx.shadowOffsetY = 1;
 
-    // Render the points text
-    const text = `+${this.config.points}`;
+    // Render the text based on type
+    let text: string;
+    if (this.config.color === '#00ffff') { // Time bonus color
+      text = `-${this.config.points} Secs`;
+    } else {
+      text = `+${this.config.points}`;
+    }
+    
     ctx.fillText(text, 0, 0);
-
-    // Add outline for extra visibility
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
-    ctx.lineWidth = 2;
-    ctx.strokeText(text, 0, 0);
 
     ctx.restore();
   }
@@ -353,5 +356,35 @@ export class PointFlyOffFactory {
 
     // Add multiplier indicator (could extend this in the future)
     return flyOff;
+  }
+
+  /**
+   * Create a time bonus fly-off
+   */
+  public static createTimeBonus(seconds: number, position: Vector2): PointFlyOff {
+    return new PointFlyOff({
+      points: seconds, // Store seconds as points for display
+      startPosition: position,
+      color: '#00ffff', // Cyan color for time bonuses
+      fontSize: 20,
+      duration: 2000,
+      animation: 'fly-up',
+      fontFamily: 'Interceptor',
+    });
+  }
+
+  /**
+   * Create a saucer waiting fly-off
+   */
+  public static createSaucerWaiting(points: number, position: Vector2): PointFlyOff {
+    return new PointFlyOff({
+      points: points,
+      startPosition: position,
+      color: '#00d26a', // Custom green color for saucer waiting points
+      fontSize: 12, // Smaller font for cascade effect
+      duration: 1200, // Shorter duration for rapid cascade
+      animation: 'fly-up',
+      fontFamily: 'Interceptor',
+    });
   }
 } 

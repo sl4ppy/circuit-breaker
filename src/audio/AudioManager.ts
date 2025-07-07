@@ -46,6 +46,7 @@ export class AudioManager {
   private loadedSounds: Map<string, AudioBuffer> = new Map();
   private currentMusic: AudioBufferSourceNode | null = null;
   private currentMusicGain: GainNode | null = null;
+  private musicAnalyser: AnalyserNode | null = null;
   private isInitialized: boolean = false;
 
   constructor() {
@@ -69,9 +70,15 @@ export class AudioManager {
       this.sfxGain = this.audioContext.createGain();
       this.musicGain = this.audioContext.createGain();
 
+      // Create audio analyser for music visualization
+      this.musicAnalyser = this.audioContext.createAnalyser();
+      this.musicAnalyser.fftSize = 512; // Increased for better frequency resolution
+      this.musicAnalyser.smoothingTimeConstant = 0.3; // Less smoothing for more responsive beats
+
       // Connect gain nodes
       this.sfxGain.connect(this.masterGain);
-      this.musicGain.connect(this.masterGain);
+      this.musicGain.connect(this.musicAnalyser);
+      this.musicAnalyser.connect(this.masterGain);
       this.masterGain.connect(this.audioContext.destination);
 
       // Set initial volumes
@@ -986,6 +993,71 @@ export class AudioManager {
    * Check if music is currently playing
    */
   public isMusicPlaying(): boolean {
-    return this.currentMusic !== null;
+    const isPlaying = this.currentMusic !== null;
+    
+    // Debug: Log music status occasionally
+    const now = Date.now();
+    if (now % 3000 < 16) { // Log every 3 seconds
+      console.log(`🎵 Music Status: ${isPlaying ? 'Playing' : 'Not Playing'}, Analyser: ${this.musicAnalyser ? 'Active' : 'Inactive'}`);
+    }
+    
+    return isPlaying;
+  }
+
+  /**
+   * Get current music audio levels for visualization
+   */
+  public getMusicLevels(): { bass: number; mid: number; treble: number; overall: number } {
+    if (!this.musicAnalyser || !this.isMusicPlaying()) {
+      return { bass: 0, mid: 0, treble: 0, overall: 0 };
+    }
+
+    const bufferLength = this.musicAnalyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    this.musicAnalyser.getByteFrequencyData(dataArray);
+
+    // Calculate frequency ranges - emphasize bass for beat detection
+    const bassRange = Math.floor(bufferLength * 0.15); // 0-15% of frequencies (more bass)
+    const midRange = Math.floor(bufferLength * 0.25); // 15-40% of frequencies
+
+    let bassSum = 0;
+    let midSum = 0;
+    let trebleSum = 0;
+    let overallSum = 0;
+
+    for (let i = 0; i < bufferLength; i++) {
+      const value = dataArray[i] / 255; // Normalize to 0-1
+      overallSum += value;
+
+      if (i < bassRange) {
+        bassSum += value;
+      } else if (i < bassRange + midRange) {
+        midSum += value;
+      } else {
+        trebleSum += value;
+      }
+    }
+
+    return {
+      bass: bassSum / bassRange,
+      mid: midSum / midRange,
+      treble: trebleSum / (bufferLength - bassRange - midRange),
+      overall: (bassSum * 0.6 + midSum * 0.3 + trebleSum * 0.1) / bufferLength // Emphasize bass for beats
+    };
+  }
+
+  /**
+   * Get a single audio level value for simple visualization
+   */
+  public getAudioLevel(): number {
+    const levels = this.getMusicLevels();
+    
+    // Debug: Log levels occasionally to see if they're changing
+    const now = Date.now();
+    if (now % 2000 < 16) { // Log every 2 seconds
+      console.log(`🔊 Audio Levels - Bass: ${levels.bass.toFixed(3)}, Mid: ${levels.mid.toFixed(3)}, Treble: ${levels.treble.toFixed(3)}, Overall: ${levels.overall.toFixed(3)}`);
+    }
+    
+    return levels.overall;
   }
 }

@@ -67,6 +67,14 @@ export class PointFlyOffManager {
       break;
     }
 
+    case PointType.TIME_BONUS:
+      flyOff = PointFlyOffFactory.createTimeBonus(event.points, event.position);
+      break;
+
+    case PointType.SAUCER_WAITING:
+      flyOff = PointFlyOffFactory.createSaucerWaiting(event.points, event.position);
+      break;
+
     default:
       logger.warn(`❌ Unknown point fly-off type: ${event.type}`, null, 'PointFlyOffManager');
       return null;
@@ -194,6 +202,28 @@ export class PointFlyOffManager {
       points,
       position: { ...position },
       metadata: { multiplier },
+    });
+  }
+
+  /**
+   * Create a time bonus fly-off
+   */
+  public showTimeBonus(seconds: number, position: Vector2): string | null {
+    return this.createFlyOff({
+      type: PointType.TIME_BONUS,
+      points: seconds,
+      position: { ...position },
+    });
+  }
+
+  /**
+   * Create a saucer waiting fly-off
+   */
+  public showSaucerWaiting(points: number, position: Vector2): string | null {
+    return this.createFlyOff({
+      type: PointType.SAUCER_WAITING,
+      points,
+      position: { ...position },
     });
   }
 

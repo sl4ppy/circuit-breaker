@@ -58,6 +58,8 @@ export class Level {
   private levelData: LevelData;
   private isCompleted: boolean = false;
   private elapsedTime: number = 0;
+  private timerStarted: boolean = false;
+  private timerStopped: boolean = false;
   private completedGoals: Set<string> = new Set(); // Track completed goal holes
   private onSoundEffect?: (soundName: string) => void;
 
@@ -72,19 +74,86 @@ export class Level {
   }
 
   /**
-   * Start the level timer
+   * Start the level (but not the timer - timer starts on first player input)
    */
   public start(): void {
     this.elapsedTime = 0;
+    this.timerStarted = false;
+    this.timerStopped = false;
     this.isCompleted = false;
-    logger.info(`🏁 Level ${this.levelData.id} started`, null, 'Level');
+    logger.info(`🏁 Level ${this.levelData.id} started - waiting for first player input to start timer`, null, 'Level');
   }
 
   /**
-   * Update level state
+   * Start the timer (called when player first moves the bar)
+   */
+  public startTimer(): void {
+    if (!this.timerStarted && !this.timerStopped) {
+      this.timerStarted = true;
+      logger.info(`⏰ Timer started for Level ${this.levelData.id}`, null, 'Level');
+    }
+  }
+
+  /**
+   * Stop the timer (called when level is completed)
+   */
+  public stopTimer(): void {
+    if (this.timerStarted && !this.timerStopped) {
+      this.timerStopped = true;
+      logger.info(`⏱️ Timer stopped for Level ${this.levelData.id} - Final time: ${this.getFormattedTime()}`, null, 'Level');
+    }
+  }
+
+  /**
+   * Add time bonus (subtract time from elapsed time)
+   */
+  public addTimeBonus(bonusSeconds: number): void {
+    if (this.timerStarted && !this.timerStopped) {
+      const bonusMs = bonusSeconds * 1000;
+      this.elapsedTime = Math.max(0, this.elapsedTime - bonusMs);
+      logger.info(`⚡ Time bonus applied: -${bonusSeconds}s - New time: ${this.getFormattedTime()}`, null, 'Level');
+    }
+  }
+
+  /**
+   * Get current elapsed time in milliseconds
+   */
+  public getElapsedTime(): number {
+    return this.elapsedTime;
+  }
+
+  /**
+   * Get formatted time string (MM:SS.sss)
+   */
+  public getFormattedTime(): string {
+    const totalSeconds = this.elapsedTime / 1000;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}:${seconds.toFixed(3).padStart(6, '0')}`;
+  }
+
+  /**
+   * Check if timer is running
+   */
+  public isTimerRunning(): boolean {
+    return this.timerStarted && !this.timerStopped;
+  }
+
+  /**
+   * Check if timer has been started
+   */
+  public hasTimerStarted(): boolean {
+    return this.timerStarted;
+  }
+
+  /**
+   * Update level state - only increment timer if it's running
    */
   public update(deltaTime: number): void {
-    this.elapsedTime += deltaTime;
+    // Only increment elapsed time if timer is running
+    if (this.timerStarted && !this.timerStopped) {
+      this.elapsedTime += deltaTime;
+    }
 
     // Update animated holes
     this.updateAnimatedHoles(Date.now());
@@ -240,6 +309,7 @@ export class Level {
   public markComplete(): void {
     if (!this.isCompleted) {
       this.isCompleted = true;
+      this.stopTimer(); // Stop the timer when level is completed
       logger.info(`🏆 Level ${this.levelData.id} completed!`, null, 'Level');
     }
   }
@@ -548,6 +618,8 @@ export class Level {
   public reset(): void {
     this.isCompleted = false;
     this.elapsedTime = 0;
+    this.timerStarted = false;
+    this.timerStopped = false;
     this.completedGoals.clear();
 
     // Reset all holes
@@ -556,6 +628,24 @@ export class Level {
     });
 
     logger.info(`🔄 Level ${this.levelData.id} reset`, null, 'Level');
+  }
+
+  /**
+   * Debug function: Force complete all required goals to win the level instantly
+   */
+  public debugForceComplete(): void {
+    // Complete all required goal holes
+    for (const goalHole of this.levelData.goalHoles) {
+      this.completedGoals.add(goalHole.id);
+      if (this.completedGoals.size >= this.levelData.requiredGoals) {
+        break; // Only complete the required number of goals
+      }
+    }
+
+    // Mark level as complete
+    this.markComplete();
+
+    logger.info(`🧪 DEBUG: Level ${this.levelData.id} force completed! (${this.completedGoals.size}/${this.levelData.requiredGoals} goals)`, null, 'Level');
   }
 }
 
@@ -864,5 +954,20 @@ export class LevelManager {
    */
   public getLevelData(levelId: number): LevelData | null {
     return this.levels.get(levelId) || null;
+  }
+
+  /**
+   * Regenerate all levels for a new run/game
+   */
+  public regenerateLevels(): void {
+    logger.info('🔄 Regenerating all levels for new run...', null, 'LevelManager');
+    
+    // Clear existing levels
+    this.levels.clear();
+    
+    // Generate fresh levels
+    this.loadLevels();
+    
+    logger.info('✅ All levels regenerated with new layouts', null, 'LevelManager');
   }
 }

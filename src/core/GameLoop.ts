@@ -164,8 +164,21 @@ export class GameLoop {
       
       // Draw the stats menu overlay on top
       game['statsMenu'].render(ctx);
+    } else if (gameState.isState(GameStateType.WIN_SCREEN)) {
+      // Draw the win screen
+      const game = this.game;
+      const ctx = this.renderer.getContext();
+      if (!ctx || !game || typeof game['winScreen'] === 'undefined' || !game['winScreen']) return;
+      
+      // Draw the gameplay background (blurred/dimmed)
+      this.renderGameplay(gameState);
+      
+      // Draw the win screen overlay on top
+      game['winScreen'].render(ctx);
     } else if (gameState.isState(GameStateType.MENU)) {
       this.renderMenu(gameState);
+    } else if (gameState.isState(GameStateType.HOW_TO_PLAY)) {
+      this.renderHowToPlay(gameState);
     } else if (gameState.isState(GameStateType.PAUSED)) {
       this.renderPaused();
     } else if (gameState.isState(GameStateType.CONFIRM_MENU)) {
@@ -419,13 +432,25 @@ export class GameLoop {
         ? this.game.isLoadingComplete()
         : false;
 
-    // Draw main title with neon glow
+    // Draw main title with animated neon glow and pulsing stroke
     ctx.save();
     ctx.shadowColor = '#00f0ff'; // Electric Blue
     ctx.shadowBlur = 20;
-    ctx.fillStyle = '#b600f9'; // Neon Purple
+    
+    // Create pulsing stroke effect
+    const loadingTitleTime = Date.now();
+    const titlePulseIntensity = 0.5 + 0.5 * Math.sin(loadingTitleTime / 1000);
+    ctx.strokeStyle = `rgba(0, 240, 255, ${titlePulseIntensity})`; // Pulsing Electric Blue
+    ctx.lineWidth = 3;
     fontManager.setFont(ctx, 'display', 72, 'bold');
     ctx.textAlign = 'center';
+    
+    // Draw stroke outline first
+    ctx.strokeText('CIRCUIT', 180, 120);
+    ctx.strokeText('BREAKER', 180, 180);
+    
+    // Draw fill text on top
+    ctx.fillStyle = '#b600f9'; // Neon Purple
     ctx.fillText('CIRCUIT', 180, 120);
     ctx.fillText('BREAKER', 180, 180);
     ctx.restore();
@@ -530,16 +555,42 @@ export class GameLoop {
     ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
     ctx.fillRect(0, 0, 360, 640);
 
-    // Draw attract mode title with pulse effect
-    const time = Date.now();
-    const pulseAlpha = 0.5 + 0.5 * Math.sin(time / 800);
-    ctx.globalAlpha = pulseAlpha;
+    // Draw main title with audio-reactive pulsing stroke effect
+    ctx.save();
     ctx.shadowColor = '#00f0ff'; // Electric Blue
-    ctx.shadowBlur = 15;
-    ctx.fillStyle = '#00f0ff'; // Electric Blue
-    fontManager.setFont(ctx, 'display', 48, 'bold');
+    ctx.shadowBlur = 20;
+    
+    // Create dramatically audio-reactive pulsing stroke effect
+    // const titleTime = Date.now(); // removed unused
+    let pulseIntensity = 0.1; // Minimal base pulse
+    
+    // Add dramatic audio reactivity if music is playing
+    if (this.game && this.game.getAudioLevel) {
+      const audioLevel = this.game.getAudioLevel();
+      const audioReactivity = audioLevel * 8.0; // Extremely dramatic reactivity
+      pulseIntensity = Math.min(1.0, pulseIntensity + audioReactivity); // Audio completely dominates
+    }
+    
+    // Keep Electric Blue color, only change opacity and width
+    ctx.strokeStyle = `rgba(0, 240, 255, ${pulseIntensity})`; // Audio-reactive Electric Blue opacity
+    // Ramp stroke width: 0px up to 0.40 audio level, then ramp to 12px
+    let strokeWidth = 0;
+    if (pulseIntensity > 0.40) {
+      const rampProgress = (pulseIntensity - 0.40) / (1.0 - 0.25); // 0 to 1 over the ramp range
+      strokeWidth = rampProgress * 12; // Ramp from 0 to 12px
+    }
+    ctx.lineWidth = strokeWidth;
+    fontManager.setFont(ctx, 'display', 48, 'bold'); // Smaller size for attract mode
     ctx.textAlign = 'center';
-    ctx.fillText('ATTRACT MODE', 180, 80);
+    
+    // Draw stroke outline first
+    ctx.strokeText('CIRCUIT', 180, 60);
+    ctx.strokeText('BREAKER', 180, 100);
+    
+    // Draw fill text on top
+    ctx.fillStyle = '#b600f9'; // Neon Purple
+    ctx.fillText('CIRCUIT', 180, 60);
+    ctx.fillText('BREAKER', 180, 100);
     ctx.restore();
 
     // Draw demo text
@@ -595,22 +646,63 @@ export class GameLoop {
 
     ctx.globalAlpha = 1;
 
-    // Draw main title with neon glow
+    // Draw main title with animated neon glow and pulsing stroke
     ctx.save();
     ctx.shadowColor = '#00f0ff'; // Electric Blue
     ctx.shadowBlur = 20;
-    ctx.fillStyle = '#b600f9'; // Neon Purple
+    
+    // Create dramatically audio-reactive pulsing stroke effect
+    const titleTime = Date.now();
+    let pulseIntensity = 0.1; // Minimal base pulse
+    
+    // Add dramatic audio reactivity if music is playing
+    if (this.game && this.game.getAudioLevel) {
+      const audioLevel = this.game.getAudioLevel();
+      const audioReactivity = audioLevel * 8.0; // Extremely dramatic reactivity
+      pulseIntensity = Math.min(1.0, pulseIntensity + audioReactivity); // Audio completely dominates
+      
+      // Debug: Log audio levels to see if they're changing
+      if (titleTime % 1000 < 16) { // Log once per second (60fps = ~16ms per frame)
+        console.log(`🎵 Audio Level: ${audioLevel.toFixed(3)}, Pulse: ${pulseIntensity.toFixed(3)}`);
+      }
+    }
+    
+    // Keep Electric Blue color, only change opacity and width
+    ctx.strokeStyle = `rgba(0, 240, 255, ${pulseIntensity})`; // Audio-reactive Electric Blue opacity
+    // Ramp stroke width: 0px up to 0.25 audio level, then ramp to 12px
+    let strokeWidth = 0;
+    if (pulseIntensity > 0.40) {
+      const rampProgress = (pulseIntensity - 0.40) / (1.0 - 0.25); // 0 to 1 over the ramp range
+      strokeWidth = rampProgress * 12; // Ramp from 0 to 12px
+    }
+    ctx.lineWidth = strokeWidth;
     fontManager.setFont(ctx, 'display', 72, 'bold');
     ctx.textAlign = 'center';
+    
+    // Draw stroke outline first
+    ctx.strokeText('CIRCUIT', 180, 120);
+    ctx.strokeText('BREAKER', 180, 180);
+    
+    // Draw fill text on top
+    ctx.fillStyle = '#b600f9'; // Neon Purple
     ctx.fillText('CIRCUIT', 180, 120);
     ctx.fillText('BREAKER', 180, 180);
     ctx.restore();
 
-    // Draw subtitle
-    ctx.fillStyle = '#b600f9'; // Neon Purple
+    // Draw subtitle with neon stroke outline
+    ctx.save();
+    ctx.strokeStyle = '#00f0ff'; // Electric Blue
+    ctx.lineWidth = 2;
     fontManager.setFont(ctx, 'primary', 16);
     ctx.textAlign = 'center';
+    
+    // Draw stroke outline first
+    ctx.strokeText('NEON CYBERPUNK PINBALL', 180, 280);
+    
+    // Draw fill text on top
+    ctx.fillStyle = '#b600f9'; // Neon Purple
     ctx.fillText('NEON CYBERPUNK PINBALL', 180, 280);
+    ctx.restore();
 
     // Draw description
     ctx.fillStyle = '#ffffff';
@@ -630,29 +722,173 @@ export class GameLoop {
     ctx.fillText('CLICK OR PRESS SPACE TO START', 180, 420);
     ctx.restore();
 
-    // Draw controls
+    // Draw bright "How to Play" button
+    ctx.save();
+    const buttonPulse = 0.7 + 0.3 * Math.sin(time / 300); // Faster pulse for attention
+    ctx.globalAlpha = buttonPulse;
+    ctx.shadowColor = '#ff6600'; // Orange glow
+    ctx.shadowBlur = 15;
+    
+    // Draw button background
+    const buttonWidth = 180;
+    const buttonHeight = 40;
+    const buttonX = 180 - buttonWidth / 2;
+    const buttonY = 460;
+    
+    ctx.fillStyle = '#ff6600'; // Bright Orange
+    ctx.fillRect(buttonX, buttonY, buttonWidth, buttonHeight);
+    
+    // Draw button border
+    ctx.strokeStyle = '#ffaa33';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(buttonX, buttonY, buttonWidth, buttonHeight);
+    
+    // Draw button text
+    ctx.globalAlpha = 1;
+    ctx.shadowBlur = 5;
+    ctx.fillStyle = '#ffffff';
+    fontManager.setFont(ctx, 'primary', 16, 'bold');
+    ctx.textAlign = 'center';
+    ctx.fillText('HOW TO PLAY', 180, buttonY + 26);
+    ctx.restore();
+    
+    // Draw hint text
     ctx.fillStyle = '#888888';
     fontManager.setFont(ctx, 'primary', 10);
-    ctx.fillText('CONTROLS:', 180, 480);
-    ctx.fillText('A/Z - Left Side Up/Down', 180, 500);
-    ctx.fillText('↑/↓ - Right Side Up/Down', 180, 520);
-    ctx.fillText('SPACE - Start/Place Ball', 180, 540);
-    ctx.fillText('S - Settings Menu', 180, 555);
-    ctx.fillText('L - Save/Load Menu', 180, 570);
-    ctx.fillText('T - Statistics Menu', 180, 585);
-    ctx.fillText('D - Toggle Debug Mode', 180, 600);
+    ctx.fillText('Press H or click button above', 180, 520);
 
-    // Draw debug mode status
+    // Draw menu shortcuts
+    ctx.fillStyle = '#888888';
+    fontManager.setFont(ctx, 'primary', 10);
+    ctx.fillText('S - Settings  •  L - Save/Load  •  T - Statistics', 180, 550);
+
+    // Draw debug mode status at bottom
     const debugStatus = gameState.isDebugMode() ? 'ON' : 'OFF';
     const debugColor = gameState.isDebugMode() ? '#00ff99' : '#b600f9'; // Acid Green or Neon Purple
     ctx.fillStyle = debugColor;
-    fontManager.setFont(ctx, 'primary', 12);
-    ctx.fillText(`DEBUG MODE: ${debugStatus}`, 180, 460);
+    fontManager.setFont(ctx, 'primary', 10);
+    ctx.fillText(`[D] DEBUG MODE: ${debugStatus}`, 180, 580);
 
     // Draw version info
     ctx.fillStyle = '#444444';
     fontManager.setFont(ctx, 'primary', 8);
-    ctx.fillText('Circuit Breaker v0.6.0', 180, 615);
+    ctx.fillText('Circuit Breaker v1.0.1', 180, 615);
+    ctx.fillText('Created by Chris Van Doren in July of 2025', 180, 630);
+  }
+
+  /**
+   * Render how to play screen
+   */
+  private renderHowToPlay(gameState: GameState): void {
+    if (!this.renderer) return;
+
+    const ctx = this.renderer.getContext();
+    if (!ctx) return;
+
+    // Draw background
+    this.renderer.drawBackground();
+
+    // Draw subtle grid pattern
+    ctx.strokeStyle = '#003366';
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = 0.3;
+
+    // Vertical lines
+    for (let x = 0; x <= 360; x += 20) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, 640);
+      ctx.stroke();
+    }
+
+    // Horizontal lines
+    for (let y = 0; y <= 640; y += 20) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(360, y);
+      ctx.stroke();
+    }
+
+    ctx.globalAlpha = 1;
+
+    // Draw title
+    ctx.save();
+    ctx.shadowColor = '#00f0ff'; // Electric Blue
+    ctx.shadowBlur = 20;
+    ctx.fillStyle = '#b600f9'; // Neon Purple
+    fontManager.setFont(ctx, 'display', 48, 'bold');
+    ctx.textAlign = 'center';
+    ctx.fillText('HOW TO PLAY', 180, 80);
+    ctx.restore();
+
+    // Draw game objective
+    ctx.fillStyle = '#00f0ff'; // Electric Blue
+    fontManager.setFont(ctx, 'primary', 14, 'bold');
+    ctx.fillText('OBJECTIVE:', 180, 120);
+    
+    ctx.fillStyle = '#ffffff';
+    fontManager.setFont(ctx, 'primary', 11);
+    ctx.fillText('Navigate the ball through cyber holes to reach', 180, 140);
+    ctx.fillText('ALL goal holes and complete each level.', 180, 155);
+    ctx.fillText('Avoid falling off the playfield!', 180, 170);
+
+    // Draw power-ups section
+    ctx.fillStyle = '#00ff99'; // Acid Green
+    fontManager.setFont(ctx, 'primary', 14, 'bold');
+    ctx.fillText('POWER-UPS & BONUSES:', 180, 200);
+    
+    ctx.fillStyle = '#ffffff';
+    fontManager.setFont(ctx, 'primary', 10);
+    ctx.fillText('• SAUCERS: Ball sinks in, gets power-up, then ejects', 180, 220);
+    ctx.fillText('• SLOW-MO SURGE: Slows down time for precision', 180, 235);
+    ctx.fillText('• MAGNETIC GUIDE: Attracts ball toward goals', 180, 250);
+    ctx.fillText('• CIRCUIT PATCH: Repairs bar damage & extends life', 180, 265);
+    ctx.fillText('• OVERCLOCK BOOST: Increases bar movement speed', 180, 280);
+    ctx.fillText('• SCAN REVEAL: Shows hidden animated holes', 180, 295);
+
+    // Draw controls section
+    ctx.fillStyle = '#ff6600'; // Orange
+    fontManager.setFont(ctx, 'primary', 14, 'bold');
+    ctx.fillText('CONTROLS:', 180, 325);
+    
+    ctx.fillStyle = '#ffffff';
+    fontManager.setFont(ctx, 'primary', 10);
+    ctx.fillText('KEYBOARD:', 180, 345);
+    ctx.fillText('• A/Z - Left Side Up/Down', 180, 360);
+    ctx.fillText('• ↑/↓ or L/, - Right Side Up/Down', 180, 375);
+    ctx.fillText('• SPACE - Start/Place Ball', 180, 390);
+    
+    ctx.fillText('TOUCH CONTROLS (Mobile):', 180, 410);
+    ctx.fillText('• Touch above/below bar sides to move up/down', 180, 425);
+    ctx.fillText('• Left side of screen controls left bar end', 180, 440);
+    ctx.fillText('• Right side of screen controls right bar end', 180, 455);
+    
+    ctx.fillText('MENUS:', 180, 475);
+    ctx.fillText('• S - Settings  • L - Save/Load  • T - Statistics', 180, 490);
+
+    // Draw back instruction with pulse effect
+    const time = Date.now();
+    const pulseAlpha = 0.5 + 0.5 * Math.sin(time / 500);
+    ctx.save();
+    ctx.globalAlpha = pulseAlpha;
+    ctx.shadowColor = '#00ff99'; // Acid Green
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = '#00ff99'; // Acid Green
+    fontManager.setFont(ctx, 'primary', 14, 'bold');
+    ctx.fillText('PRESS ESC OR BACKSPACE TO RETURN', 180, 540);
+    ctx.restore();
+
+    // Draw debug mode status at bottom
+    const debugStatus = gameState.isDebugMode() ? 'ON' : 'OFF';
+    const debugColor = gameState.isDebugMode() ? '#00ff99' : '#b600f9'; // Acid Green or Neon Purple
+    ctx.fillStyle = debugColor;
+    fontManager.setFont(ctx, 'primary', 10);
+    ctx.fillText(`[D] DEBUG MODE: ${debugStatus}`, 180, 580);
+
+    // Draw version info
+    ctx.fillStyle = '#444444';
+    fontManager.setFont(ctx, 'primary', 8);
+    ctx.fillText('Circuit Breaker v1.0.1', 180, 615);
     ctx.fillText('Created by Chris Van Doren in July of 2025', 180, 630);
   }
 

@@ -2,9 +2,11 @@
 // Handles different game states and transitions
 
 import { logger } from '../utils/Logger';
+import { LevelScoreData } from './UnifiedScoringSystem';
 
 export enum GameStateType {
   MENU = 'menu',
+  HOW_TO_PLAY = 'how_to_play', // How to play screen
   ATTRACT_MODE = 'attract_mode', // Auto-play demo mode
   PLAYING = 'playing',
   PAUSED = 'paused',
@@ -12,6 +14,7 @@ export enum GameStateType {
   SETTINGS = 'settings', // Settings menu overlay
   SAVE_LOAD = 'save_load', // Save/load menu overlay
   STATS = 'stats', // Stats menu overlay
+  WIN_SCREEN = 'win_screen', // Level completion screen
   LEVEL_COMPLETE = 'level_complete',
   GAME_OVER = 'game_over',
   LOADING = 'loading',
@@ -19,7 +22,8 @@ export enum GameStateType {
 
 export interface GameStateData {
   currentLevel: number;
-  score: number;
+  score: number; // Legacy score field - kept for compatibility
+  totalScore: number; // New unified total score
   lives: number;
   isPaused: boolean;
   isGameOver: boolean;
@@ -33,6 +37,9 @@ export interface GameStateData {
     barSpeedMultiplier?: number;
     scanActive?: boolean;
   };
+  // Unified scoring system data
+  levelScores: LevelScoreData[];
+  currentLevelStartTime?: number;
 }
 
 export class GameState {
@@ -40,6 +47,7 @@ export class GameState {
   private stateData: GameStateData = {
     currentLevel: 1,
     score: 0,
+    totalScore: 0,
     lives: 3,
     isPaused: false,
     isGameOver: false,
@@ -47,6 +55,9 @@ export class GameState {
     // Power-up related state
     activePowerUps: [],
     powerUpEffects: {},
+    // Unified scoring system data
+    levelScores: [],
+    currentLevelStartTime: undefined,
   };
 
   constructor() {
@@ -154,6 +165,20 @@ export class GameState {
   }
 
   /**
+   * Check if in how to play state
+   */
+  public isHowToPlay(): boolean {
+    return this.currentState === GameStateType.HOW_TO_PLAY;
+  }
+
+  /**
+   * Check if in win screen state
+   */
+  public isWinScreen(): boolean {
+    return this.currentState === GameStateType.WIN_SCREEN;
+  }
+
+  /**
    * Check if debug mode is enabled
    */
   public isDebugMode(): boolean {
@@ -181,6 +206,49 @@ export class GameState {
   }
 
   /**
+   * Update total score from unified scoring system
+   */
+  public updateTotalScore(totalScore: number): void {
+    this.stateData.totalScore = totalScore;
+  }
+
+  /**
+   * Add level score data
+   */
+  public addLevelScore(levelScore: LevelScoreData): void {
+    this.stateData.levelScores.push(levelScore);
+    this.stateData.totalScore += levelScore.levelPoints;
+  }
+
+  /**
+   * Get current total score from unified system
+   */
+  public getTotalScore(): number {
+    return this.stateData.totalScore;
+  }
+
+  /**
+   * Get level scores history
+   */
+  public getLevelScores(): LevelScoreData[] {
+    return [...this.stateData.levelScores];
+  }
+
+  /**
+   * Set current level start time
+   */
+  public setCurrentLevelStartTime(time: number): void {
+    this.stateData.currentLevelStartTime = time;
+  }
+
+  /**
+   * Get current level start time
+   */
+  public getCurrentLevelStartTime(): number | undefined {
+    return this.stateData.currentLevelStartTime;
+  }
+
+  /**
    * Reset game state to initial values
    */
   public reset(): void {
@@ -188,6 +256,7 @@ export class GameState {
     this.stateData = {
       currentLevel: 1,
       score: 0,
+      totalScore: 0,
       lives: 3,
       isPaused: false,
       isGameOver: false,
@@ -195,6 +264,9 @@ export class GameState {
       // Power-up related state
       activePowerUps: [],
       powerUpEffects: {},
+      // Unified scoring system data
+      levelScores: [],
+      currentLevelStartTime: undefined,
     };
     logger.info('🔄 Game state reset', null, 'GameState');
   }

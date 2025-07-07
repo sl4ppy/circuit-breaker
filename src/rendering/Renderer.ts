@@ -528,13 +528,17 @@ export class Renderer {
       } else if (isPowerUpHole) {
         // Use specific power-up sprites from the power-up atlas
         const powerUpSprites = {
-          'SLOW_MO_SURGE': 'hourglass',
-          'MAGNETIC_GUIDE': 'magnet',
-          'CIRCUIT_PATCH': 'chip',
-          'OVERCLOCK_BOOST': 'cross',
-          'SCAN_REVEAL': 'eye',
+          'SLOW_MO_SURGE': ['hourglass', 'hourglass_alt'], // Time bonus sprites
+          'MAGNETIC_GUIDE': ['magnet', 'magnet_alt', 'hourglass_alt'], // Occasionally time bonus
+          'CIRCUIT_PATCH': ['chip', 'chip_alt'],
+          'OVERCLOCK_BOOST': ['starburst', 'starburst_alt', 'hourglass'], // Occasionally time bonus
+          'SCAN_REVEAL': ['eye', 'eye_alt'],
         };
-        spriteName = powerUpSprites[hole.powerUpType as unknown as keyof typeof powerUpSprites] || 'hourglass';
+        
+        // Select sprite based on hole ID for consistent randomization
+        const sprites = powerUpSprites[hole.powerUpType as unknown as keyof typeof powerUpSprites] || ['vortex'];
+        const spriteIndex = hole.id.charCodeAt(hole.id.length - 1) % sprites.length;
+        spriteName = sprites[spriteIndex];
       } else {
         spriteName = 'ball_whole_normal';
       }

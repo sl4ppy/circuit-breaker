@@ -16,6 +16,7 @@ import { SettingsMenu } from '../ui/SettingsMenu';
 import { SaveLoadMenu } from '../ui/SaveLoadMenu';
 import { AchievementNotification } from '../ui/AchievementNotification';
 import { StatsMenu } from '../ui/StatsMenu';
+import { WinScreen } from '../ui/WinScreen';
 import { StorageManager, GameProgress } from './StorageManager';
 import { AchievementManager } from './AchievementManager';
 import { StatsManager } from './StatsManager';
@@ -25,6 +26,7 @@ import { PowerUpEventSystem } from './PowerUpEventSystem';
 import { PowerUpDebugger } from '../utils/PowerUpDebugger';
 import { getPowerUpConfig } from './PowerUpConfig';
 import { PointFlyOffManager } from '../ui/PointFlyOffManager';
+import { UnifiedScoringSystem } from './UnifiedScoringSystem';
 
 
 export class Game {
@@ -40,6 +42,7 @@ export class Game {
   private saveLoadMenu: SaveLoadMenu;
   private achievementNotification: AchievementNotification;
   private statsMenu: StatsMenu;
+  private winScreen: WinScreen | null = null;
   private storageManager: StorageManager;
   private achievementManager: AchievementManager;
   private statsManager: StatsManager;
@@ -48,10 +51,22 @@ export class Game {
   private powerUpEventSystem: PowerUpEventSystem;
   private powerUpDebugger: PowerUpDebugger;
   private pointFlyOffManager: PointFlyOffManager;
+  private unifiedScoringSystem: UnifiedScoringSystem;
   private currentLevel: Level | null = null;
   private isRunning: boolean = false;
   private levelCompletionHandled: boolean = false;
   private lastSaucerConstraintY: number | undefined = undefined;
+
+  // Saucer waiting scoring state
+  private saucerWaitingScoringState: {
+    isActive: boolean;
+    lastScoringTime: number;
+    scoringInterval: number; // 50ms = 1/20th second
+  } = {
+    isActive: false,
+    lastScoringTime: 0,
+    scoringInterval: 50, // 50ms = 1/20th second
+  };
 
   // Hole animation state
   private isAnimatingHoleFall: boolean = false;
@@ -84,6 +99,7 @@ export class Game {
   private gameProgress!: GameProgress; // Will be initialized in loadGameProgress()
   private currentSaveSlot: number = 0;
   private sessionStartTime: number = 0;
+  private sessionTotalTime: number = 0; // Cumulative time across all completed levels in this session
   private lastAutoSave: number = 0;
 
   constructor() {
@@ -121,6 +137,9 @@ export class Game {
     
     // Initialize point fly-off system
     this.pointFlyOffManager = new PointFlyOffManager();
+
+    // Initialize unified scoring system
+    this.unifiedScoringSystem = new UnifiedScoringSystem();
 
     this.settingsMenu = new SettingsMenu({
       audioManager: this.audioManager,
@@ -474,6 +493,36 @@ export class Game {
         this.menuTimer = 0; // Reset timer
       }
 
+      // Handle how to play key (H key)
+      if (this.inputManager.isKeyJustPressed('KeyH')) {
+        logger.info('❓ Opening how to play screen...', null, 'Game');
+        this.openHowToPlay();
+        this.menuTimer = 0; // Reset timer
+      }
+
+      // Handle mouse clicks on How to Play button
+      if (this.inputManager.isMouseJustPressed()) {
+        const mousePos = this.inputManager.getMousePosition();
+        if (mousePos) {
+          // How to Play button bounds (matches the button drawn in renderMenu)
+          const buttonX = 180 - 90; // buttonWidth / 2 = 180 / 2 = 90
+          const buttonY = 460;
+          const buttonWidth = 180;
+          const buttonHeight = 40;
+          
+          if (mousePos.x >= buttonX && mousePos.x <= buttonX + buttonWidth &&
+              mousePos.y >= buttonY && mousePos.y <= buttonY + buttonHeight) {
+            logger.info('❓ Opening how to play screen via button click...', null, 'Game');
+            this.openHowToPlay();
+            this.menuTimer = 0; // Reset timer
+            
+            // Don't start the game if we clicked the How to Play button
+            this.inputManager.endFrame();
+            return;
+          }
+        }
+      }
+
       // Update menu timer and check for attract mode
       this.menuTimer += deltaTime;
       if (this.menuTimer >= this.attractModeDelay) {
@@ -605,6 +654,44 @@ export class Game {
       }
     }
 
+    // Handle win screen input
+    if (this.gameState.isWinScreen() && this.winScreen) {
+      // Update win screen animation
+      this.winScreen.update(deltaTime);
+      
+      // Handle keyboard input for win screen
+      const keys = this.inputManager.getJustPressedKeys();
+      for (const key of keys) {
+        this.winScreen.handleInput(key);
+      }
+
+      // Handle mouse click to continue
+      if (this.inputManager.isMouseJustPressed()) {
+        this.winScreen.handleInput('Space'); // Treat mouse click as space
+      }
+    }
+
+    // Handle how to play screen input
+    if (this.gameState.isHowToPlay()) {
+      // Handle escape key or backspace to return to menu
+      if (this.inputManager.isActionJustPressed('pause') || this.inputManager.isKeyJustPressed('Backspace')) {
+        logger.info('❓ Closing how to play screen...', null, 'Game');
+        this.gameState.setState(GameStateType.MENU);
+        this.audioManager.playSound('ui_click');
+      }
+      
+      // Handle debug mode toggle
+      if (this.inputManager.isKeyJustPressed('KeyD')) {
+        this.gameState.toggleDebugMode();
+        
+        // Update physics engine debug mode to match
+        this.physicsEngine.setDebug(this.gameState.isDebugMode());
+        
+        // Play UI click sound
+        this.audioManager.playSound('ui_click');
+      }
+    }
+
     // Handle confirmation dialog input
     if (this.gameState.isConfirmingMenu()) {
       // Y key or Enter - confirm return to menu
@@ -679,6 +766,11 @@ export class Game {
       const leftSideInput = this.inputManager.getLeftSideInput();
       const rightSideInput = this.inputManager.getRightSideInput();
 
+      // Start the timer when player first moves the bar
+      if (this.currentLevel && !this.currentLevel.hasTimerStarted() && (leftSideInput !== 0 || rightSideInput !== 0)) {
+        this.currentLevel.startTimer();
+      }
+
       this.tiltingBar.moveLeftSide(leftSideInput);
       this.tiltingBar.moveRightSide(rightSideInput);
       this.tiltingBar.update(deltaTime / 1000); // Convert to seconds
@@ -745,8 +837,39 @@ export class Game {
         fontManager.setFont(ctx, 'primary', 12);
         ctx.textAlign = 'left';
         ctx.fillText(`Level: ${levelData.id} - ${levelData.name}`, 10, 20);
-        ctx.fillText(`Score: ${this.gameState.getStateData().score}`, 10, 35);
-        ctx.fillText(`Lives: ${this.gameState.getStateData().lives}`, 10, 50);
+        
+        // Display unified total score
+        const totalScore = this.unifiedScoringSystem.getCurrentTotalScore();
+        ctx.fillText(`Total Score: ${totalScore.toFixed(1)}`, 10, 35);
+        
+        // Display current level points preview
+        const currentLevelStatus = this.unifiedScoringSystem.getCurrentLevelStatus();
+        if (currentLevelStatus.isActive) {
+          const levelPointsPreview = this.unifiedScoringSystem.getLevelPointsPreview(levelData.id);
+          ctx.fillText(`Level Points: ${levelPointsPreview.toFixed(1)}`, 10, 50);
+        } else {
+          ctx.fillText(`Level Points: --.-`, 10, 50);
+        }
+        
+        ctx.fillText(`Lives: ${this.gameState.getStateData().lives}`, 10, 65);
+        
+        // Display timer with unified scoring status
+        if (currentLevelStatus.isActive) {
+          const rawTime = currentLevelStatus.rawTime;
+          const minutes = Math.floor(rawTime / 60);
+          const seconds = rawTime % 60;
+          const timeDisplay = `${minutes}:${seconds.toFixed(3).padStart(6, '0')}`;
+          
+          // Show time adjustments if any
+          let adjustmentText = '';
+          if (currentLevelStatus.timeReductions > 0 || currentLevelStatus.assistPenalties > 0) {
+            adjustmentText = ` (${currentLevelStatus.timeReductions > 0 ? '-' + currentLevelStatus.timeReductions.toFixed(1) : ''}${currentLevelStatus.assistPenalties > 0 ? '+' + currentLevelStatus.assistPenalties.toFixed(1) : ''})`;
+          }
+          
+          ctx.fillText(`Time: ${timeDisplay}${adjustmentText}`, 10, 80);
+        } else {
+          ctx.fillText(`Time: --:---.---`, 10, 80);
+        }
 
         // Debug information (only visible in debug mode)
         if (this.gameState.isDebugMode()) {
@@ -757,24 +880,24 @@ export class Game {
           // Show device detection info
           const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
                            window.innerWidth <= 768;
-          ctx.fillText(`Device: ${isMobile ? 'Mobile' : 'Desktop'}`, 10, 80);
-          ctx.fillText(`Window: ${window.innerWidth}x${window.innerHeight}`, 10, 95);
+          ctx.fillText(`Device: ${isMobile ? 'Mobile' : 'Desktop'}`, 10, 95);
+          ctx.fillText(`Window: ${window.innerWidth}x${window.innerHeight}`, 10, 110);
           
           try {
             const scalingManager = ScalingManager.getInstance();
             const currentScale = scalingManager.getCurrentScale();
             const config = scalingManager.getConfig();
-            ctx.fillText(`Scale: ${currentScale.toFixed(2)}x (min: ${config.minScale})`, 10, 110);
-            ctx.fillText(`ForceInt: ${config.forceIntegerScaling}`, 10, 125);
+            ctx.fillText(`Scale: ${currentScale.toFixed(2)}x (min: ${config.minScale})`, 10, 125);
+            ctx.fillText(`ForceInt: ${config.forceIntegerScaling}`, 10, 140);
             
             // Show canvas size info
             const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
             if (canvas) {
-              ctx.fillText(`Canvas: ${canvas.width}x${canvas.height}`, 10, 140);
-              ctx.fillText(`Style: ${canvas.style.width} x ${canvas.style.height}`, 10, 155);
+              ctx.fillText(`Canvas: ${canvas.width}x${canvas.height}`, 10, 155);
+              ctx.fillText(`Style: ${canvas.style.width} x ${canvas.style.height}`, 10, 170);
             }
           } catch (e) {
-            ctx.fillText('Scale: Error', 10, 110);
+            ctx.fillText('Scale: Error', 10, 125);
           }
 
           // Touch indicator and control feedback
@@ -797,19 +920,19 @@ export class Game {
             // Left side visual feedback
             if (leftInput !== 0) {
               ctx.fillStyle = leftInput > 0 ? '#00ff00' : '#ff6600'; // Green for up, orange for down
-              ctx.fillRect(10, 130, 30, 15);
+              ctx.fillRect(10, 180, 30, 15);
               ctx.fillStyle = '#ffffff';
               ctx.textAlign = 'center';
-              ctx.fillText(leftInput > 0 ? 'L↑' : 'L↓', 25, 141);
+              ctx.fillText(leftInput > 0 ? 'L↑' : 'L↓', 25, 191);
             }
             
             // Right side visual feedback
             if (rightInput !== 0) {
               ctx.fillStyle = rightInput > 0 ? '#00ff00' : '#ff6600'; // Green for up, orange for down
-              ctx.fillRect(320, 130, 30, 15);
+              ctx.fillRect(320, 180, 30, 15);
               ctx.fillStyle = '#ffffff';
               ctx.textAlign = 'center';
-              ctx.fillText(rightInput > 0 ? 'R↑' : 'R↓', 335, 141);
+              ctx.fillText(rightInput > 0 ? 'R↑' : 'R↓', 335, 191);
             }
             
             ctx.fillStyle = '#00f0ff'; // Reset color
@@ -821,7 +944,7 @@ export class Game {
               const scalingManager = ScalingManager.getInstance();
               const currentScale = scalingManager.getCurrentScale();
               ctx.fillText(`Scale: ${currentScale.toFixed(2)}x`, 260, 65);
-              ctx.fillText(`Screen: ${window.innerWidth}x${window.innerHeight}`, 10, 110);
+              ctx.fillText(`Screen: ${window.innerWidth}x${window.innerHeight}`, 10, 200);
             } catch (e) {
               ctx.fillText('Scale: Error', 260, 65);
             }
@@ -833,7 +956,7 @@ export class Game {
               const scalingManager = ScalingManager.getInstance();
               const currentScale = scalingManager.getCurrentScale();
               ctx.fillText(`Scale: ${currentScale.toFixed(2)}x`, 260, 65);
-              ctx.fillText(`Screen: ${window.innerWidth}x${window.innerHeight}`, 10, 110);
+              ctx.fillText(`Screen: ${window.innerWidth}x${window.innerHeight}`, 10, 200);
             } catch (e) {
               ctx.fillText('Scale: Error', 260, 65);
             }
@@ -845,7 +968,7 @@ export class Game {
           ctx.fillText(
             `Progress: ${Math.round(this.currentLevel.getProgress() * 100)}%`,
             10,
-            65,
+            210,
           );
 
           // Show multi-goal progress
@@ -854,13 +977,13 @@ export class Game {
           ctx.fillText(
             `Goals: ${completedGoals}/${requiredGoals} completed`,
             10,
-            80,
+            225,
           );
 
           if (completedGoals < requiredGoals) {
-            ctx.fillText('Goal: Navigate to the glowing goal holes', 10, 95);
+            ctx.fillText('Goal: Navigate to the glowing goal holes', 10, 240);
           } else {
-            ctx.fillText('Goal: All goals completed! Level complete!', 10, 95);
+            ctx.fillText('Goal: All goals completed! Level complete!', 10, 240);
           }
         }
       }
@@ -882,6 +1005,15 @@ export class Game {
           'Navigate upward to the goal holes - avoid falling into other holes!',
           180,
           595,
+        );
+        
+        // Debug function keys
+        ctx.fillStyle = '#ffaa00'; // Orange for debug info
+        fontManager.setFont(ctx, 'primary', 8);
+        ctx.fillText(
+          'DEBUG: F1: Toggle Overlay | F2: Clear History | F3: Export | F4: Test Effects | W: Instant Win',
+          180,
+          610,
         );
       }
     }
@@ -1100,10 +1232,10 @@ export class Game {
    */
   private renderPowerUpHUD(ctx: CanvasRenderingContext2D, activePowerUps: Map<PowerUpType, any>): void {
     const powerUpSprites = {
-      [PowerUpType.SLOW_MO_SURGE]: 'hourglass',
+      [PowerUpType.SLOW_MO_SURGE]: 'hourglass', // Time bonus sprite (use primary for HUD)
       [PowerUpType.MAGNETIC_GUIDE]: 'magnet',
       [PowerUpType.CIRCUIT_PATCH]: 'chip',
-      [PowerUpType.OVERCLOCK_BOOST]: 'cross',
+      [PowerUpType.OVERCLOCK_BOOST]: 'starburst',
       [PowerUpType.SCAN_REVEAL]: 'eye',
     };
 
@@ -1345,6 +1477,9 @@ export class Game {
       this.gameState.updateStateData({ currentLevel: levelId });
       this.levelCompletionHandled = false; // Reset completion flag for new level
 
+      // Start unified scoring system timer for this level
+      this.unifiedScoringSystem.startLevel(levelId);
+
       // Reset tilting bar to starting position
       this.tiltingBar.reset();
 
@@ -1517,6 +1652,9 @@ export class Game {
       // Animated hole - same as regular hole but with special effects
       this.audioManager.playSound('zap');
       
+      // Apply time bonus for animated holes (they're trickier to navigate)
+      this.applyRegularHoleTimeBonus(hole, true);
+      
       // Reset tilting bar to starting position
       this.tiltingBar.reset();
       logger.info('🔄 Bar reset to starting position after ball fell into animated hole', null, 'Game');
@@ -1535,6 +1673,9 @@ export class Game {
       // Regular hole - play falling sound, reset bar, and start animation
       this.audioManager.playSound('zap');
       
+      // Apply time bonus for regular holes
+      this.applyRegularHoleTimeBonus(hole, false);
+      
       // Reset tilting bar to starting position
       this.tiltingBar.reset();
       logger.info('🔄 Bar reset to starting position after ball fell into hole', null, 'Game');
@@ -1551,6 +1692,9 @@ export class Game {
 
     // Check if any ball is in a saucer and update height constraints
     this.updateSaucerHeightConstraints();
+
+    // Update saucer waiting scoring system
+    this.updateSaucerWaitingScoring();
 
     const kickData = this.currentLevel.updateSaucerBehavior(Date.now());
     if (kickData) {
@@ -1634,6 +1778,96 @@ export class Game {
   }
 
   /**
+   * Update saucer waiting scoring system
+   */
+  private updateSaucerWaitingScoring(): void {
+    if (!this.currentLevel) return;
+
+    const currentTime = Date.now();
+    
+    // Check if any ball is in a saucer waiting phase
+    let ballInWaitingPhase = false;
+    let ballPosition: { x: number; y: number } | null = null;
+
+    // Find the game ball
+    const ball = this.physicsEngine.getObjects().find(obj => obj.id === 'game-ball');
+    if (!ball) return;
+
+    // Check all holes for active saucer states in waiting phase
+    const holes = this.currentLevel.getHoles();
+    for (const hole of holes) {
+      if (hole.saucerState?.isActive && 
+          hole.saucerState.ballId === 'game-ball' && 
+          hole.saucerState.phase === 'waiting') {
+        ballInWaitingPhase = true;
+        ballPosition = this.currentLevel.getSaucerBallPosition(hole.id);
+        break;
+      }
+    }
+
+    // Update scoring state
+    if (ballInWaitingPhase) {
+      if (!this.saucerWaitingScoringState.isActive) {
+        // Start scoring
+        this.saucerWaitingScoringState.isActive = true;
+        this.saucerWaitingScoringState.lastScoringTime = currentTime;
+        logger.info('🎯 Started saucer waiting scoring', null, 'Game');
+      }
+
+      // Check if it's time to award points
+      if (currentTime - this.saucerWaitingScoringState.lastScoringTime >= this.saucerWaitingScoringState.scoringInterval) {
+        // Award 1000 points (1 point * 1000 multiplier from unified scoring)
+        const points = 1000;
+        
+        // Add to legacy score for compatibility
+        const currentScore = this.gameState.getStateData().score;
+        this.gameState.updateStateData({ score: currentScore + points });
+
+        // Add to unified scoring system as bonus points
+        this.unifiedScoringSystem.addBonusPoints(points);
+
+        // Create cascade flyoff animation from top of ball (show +1 for user experience)
+        if (ballPosition) {
+          this.createSaucerWaitingFlyoff(1, ballPosition); // Show +1 in flyoff for better UX
+        }
+
+        // Play satisfying slot machine-style audio feedback
+        this.audioManager.playSound('target', 0.6, 1.3); // More satisfying "ding" sound
+
+        // Update scoring state
+        this.saucerWaitingScoringState.lastScoringTime = currentTime;
+
+        logger.debug(`🎯 Awarded ${points} points for saucer waiting`, null, 'Game');
+      }
+    } else {
+      // Clear scoring state if no longer in waiting phase
+      if (this.saucerWaitingScoringState.isActive) {
+        this.saucerWaitingScoringState.isActive = false;
+        logger.info('🎯 Stopped saucer waiting scoring', null, 'Game');
+      }
+    }
+  }
+
+  /**
+   * Create cascade flyoff animation for saucer waiting scoring
+   */
+  private createSaucerWaitingFlyoff(points: number, ballPosition: { x: number; y: number }): void {
+    // Create flyoff position at the top of the ball - always from the same spot
+    const ballRadius = 12; // Approximate ball radius
+    
+    // Position flyoffs coming from the top of the ball with slight random spread
+    const flyoffPosition = {
+      x: ballPosition.x + (Math.random() - 0.5) * 16, // Small random horizontal spread
+      y: ballPosition.y - ballRadius + (Math.random() - 0.5) * 8, // Slight random vertical variation around ball top
+    };
+
+    // Use the new saucer waiting flyoff method with custom color #00d26a
+    this.pointFlyOffManager.showSaucerWaiting(points, flyoffPosition);
+
+    logger.debug(`✨ Created saucer waiting flyoff: +${points} at (${flyoffPosition.x}, ${flyoffPosition.y})`, null, 'Game');
+  }
+
+  /**
    * Handle power-up hole collection
    */
   private handlePowerUpHoleCollection(hole: Hole): void {
@@ -1644,14 +1878,28 @@ export class Game {
     // Add charge to the power-up
     this.powerUpManager.addCharges(hole.powerUpType, 1);
 
-    // Show point fly-off animation at hole position
-    const powerUpPoints = 100; // Base points for power-up collection
-    const powerUpColor = this.getPowerUpColor(hole.powerUpType);
-    this.pointFlyOffManager.showPowerUpCollect(
-      powerUpPoints,
-      hole.position,
-      powerUpColor,
-    );
+    // Get ball position for fly-off animation
+    const ball = this.physicsEngine.getObjects().find(obj => obj.id === 'game-ball');
+    const ballPosition = ball ? { x: ball.position.x, y: ball.position.y } : undefined;
+
+    // Apply time bonus if power-up provides one
+    this.applyPowerUpTimeBonus(hole, ballPosition);
+
+    // Show appropriate fly-off animation based on sprite type
+    const spriteName = this.getPowerUpSpriteName(hole.powerUpType, hole.id);
+    if (this.isTimeBonusSprite(spriteName)) {
+      // For time bonus sprites (hourglass/hourglass_alt), only show time bonus fly-off
+      // Don't show regular power-up collection fly-off
+    } else {
+      // For other power-ups, show regular power-up collection fly-off
+      const powerUpPoints = 100; // Base points for power-up collection
+      const powerUpColor = this.getPowerUpColor(hole.powerUpType);
+      this.pointFlyOffManager.showPowerUpCollect(
+        powerUpPoints,
+        hole.position,
+        powerUpColor,
+      );
+    }
 
     // Don't deactivate the hole immediately - let saucer handle it
     // The hole will be deactivated after the ball is kicked out
@@ -1669,6 +1917,91 @@ export class Game {
     logger.info(`⚡ Added charge to ${hole.powerUpType} from power-up hole`, null, 'Game');
   }
 
+  /**
+   * Get the sprite name for a power-up hole
+   */
+  private getPowerUpSpriteName(powerUpType: PowerUpType, holeId: string): string {
+    const powerUpSprites = {
+      'SLOW_MO_SURGE': ['hourglass', 'hourglass_alt'], // Time bonus sprites
+      'MAGNETIC_GUIDE': ['magnet', 'magnet_alt', 'hourglass_alt'], // Occasionally time bonus
+      'CIRCUIT_PATCH': ['chip', 'chip_alt'],
+      'OVERCLOCK_BOOST': ['starburst', 'starburst_alt', 'hourglass'], // Occasionally time bonus
+      'SCAN_REVEAL': ['eye', 'eye_alt'],
+    };
+    
+    // Select sprite based on hole ID for consistent randomization
+    const sprites = powerUpSprites[powerUpType as unknown as keyof typeof powerUpSprites] || ['vortex'];
+    const spriteIndex = holeId.charCodeAt(holeId.length - 1) % sprites.length;
+    return sprites[spriteIndex];
+  }
+
+  /**
+   * Check if a sprite grants time bonus (hourglass or hourglass_alt)
+   */
+  private isTimeBonusSprite(spriteName: string): boolean {
+    return spriteName === 'hourglass' || spriteName === 'hourglass_alt';
+  }
+
+  /**
+   * Apply time bonus for specific power-up types
+   */
+  private applyPowerUpTimeBonus(hole: Hole, ballPosition?: { x: number; y: number }): void {
+    if (!hole.powerUpType) return;
+
+    // Get the sprite name for this specific hole
+    const spriteName = this.getPowerUpSpriteName(hole.powerUpType, hole.id);
+    
+    // Check if this sprite grants time bonus
+    if (this.isTimeBonusSprite(spriteName)) {
+      // 3 seconds bonus for hourglass/hourglass_alt sprites - this is a time reduction
+      const timeBonus = 3.0;
+      this.unifiedScoringSystem.addTimeReduction(timeBonus);
+      logger.info(`⏰ Time reduction applied: -${timeBonus}s from ${hole.powerUpType} (${spriteName} sprite)`, null, 'Game');
+      
+      // Show time bonus fly-off for time bonus sprites
+      if (ballPosition) {
+        this.pointFlyOffManager.showTimeBonus(timeBonus, ballPosition);
+      }
+    } else {
+      // Check if this is an assist power-up that should add time penalty
+      const assistPenalties: { [key in PowerUpType]?: number } = {
+        [PowerUpType.SLOW_MO_SURGE]: 2.0,      // 2 seconds penalty for slow-mo assistance
+        [PowerUpType.MAGNETIC_GUIDE]: 2.0,     // 2 seconds penalty for magnetic guidance
+      };
+      
+      const timePenalty = assistPenalties[hole.powerUpType];
+      if (timePenalty) {
+        this.unifiedScoringSystem.addAssistPenalty(timePenalty);
+        logger.info(`⚖️ Assist penalty applied: +${timePenalty}s from ${hole.powerUpType}`, null, 'Game');
+      }
+      
+      // Regular time reductions for other power-ups
+      const regularTimeReductions: { [key in PowerUpType]?: number } = {
+        [PowerUpType.CIRCUIT_PATCH]: 1.0,      // 1 second reduction (shield is valuable)
+        [PowerUpType.OVERCLOCK_BOOST]: 0.5,    // 0.5 seconds reduction
+        [PowerUpType.SCAN_REVEAL]: 0.5,        // 0.5 seconds reduction
+      };
+      
+      const timeReduction = regularTimeReductions[hole.powerUpType];
+      if (timeReduction) {
+        this.unifiedScoringSystem.addTimeReduction(timeReduction);
+        logger.info(`⏰ Time reduction applied: -${timeReduction}s from ${hole.powerUpType}`, null, 'Game');
+      }
+    }
+  }
+
+  /**
+   * Apply time bonus for regular holes and animated holes
+   */
+  private applyRegularHoleTimeBonus(hole: Hole, isAnimated: boolean): void {
+    // Time reductions for regular holes (smaller bonuses since they're more common)
+    const timeReduction = isAnimated ? 0.3 : 0.1; // Animated holes give more bonus
+    
+    this.unifiedScoringSystem.addTimeReduction(timeReduction);
+    const holeType = isAnimated ? 'animated hole' : 'regular hole';
+    logger.info(`⏰ Time reduction applied: -${timeReduction}s from ${holeType} (${hole.id})`, null, 'Game');
+  }
+
 
 
   /**
@@ -1679,16 +2012,27 @@ export class Game {
 
     logger.info('🏆 Level completed!', null, 'Game');
 
-    // Record level complete event
+    // Get level completion data
     const levelId = this.currentLevel.getLevelData().id;
-    const levelScore = this.currentLevel.calculateScore();
+    
+    // Complete level in unified scoring system
+    const levelScoreData = this.unifiedScoringSystem.completeLevel(levelId);
+    
+    // Add level time to session total (keep for compatibility)
+    this.sessionTotalTime += levelScoreData.rawTime * 1000; // Convert to milliseconds
+
+    // Record level complete event with new scoring data
     this.statsManager.recordEvent({
       type: 'level_complete',
       timestamp: Date.now(),
       data: { 
         levelId,
-        score: levelScore,
-        completionTime: Date.now() - this.sessionStartTime, // Rough completion time
+        score: levelScoreData.levelPoints,
+        completionTime: levelScoreData.rawTime * 1000, // Convert to milliseconds
+        baseLevelValue: levelScoreData.baseLevelValue,
+        adjustedTime: levelScoreData.adjustedTime,
+        timeReductions: levelScoreData.timeReductions,
+        assistPenalties: levelScoreData.assistPenalties,
       },
     });
 
@@ -1696,28 +2040,65 @@ export class Game {
     this.gameProgress.completedLevels.add(levelId);
     this.gameProgress.highestLevel = Math.max(this.gameProgress.highestLevel, levelId);
 
+    // Update game state with new scoring data
+    this.gameState.addLevelScore(levelScoreData);
+    
+    // Update legacy score for compatibility
+    const currentScore = this.gameState.getStateData().score;
+    this.gameState.updateStateData({ 
+      score: currentScore + Math.floor(levelScoreData.levelPoints),
+      totalScore: this.unifiedScoringSystem.getCurrentTotalScore(),
+    });
+
     // Play level completion sound
     this.audioManager.playSound('level_complete');
 
-    // Add level completion bonus
-    const currentScore = this.gameState.getStateData().score;
-    this.gameState.updateStateData({ score: currentScore + levelScore });
-
     // Show level completion fly-off animation in center of screen
     this.pointFlyOffManager.showLevelComplete(
-      levelScore,
+      levelScoreData.levelPoints,
       { x: 180, y: 320 }, // Center of 360x640 screen
     );
 
-    logger.info(`🎉 Level bonus: ${levelScore}`, null, 'Game');
+    logger.info(`🎉 Level Points: ${levelScoreData.levelPoints.toFixed(2)} (${levelScoreData.baseLevelValue}/${levelScoreData.adjustedTime.toFixed(2)}s)`, null, 'Game');
 
     // Move to next level
     const nextLevelId = this.currentLevel.getLevelData().id + 1;
     this.levelManager.unlockLevel(nextLevelId);
 
+    // Create and show win screen with new scoring data
+    this.winScreen = new WinScreen({
+      onContinue: () => this.handleWinScreenContinue(),
+      levelTime: levelScoreData.rawTime * 1000, // Convert to milliseconds
+      sessionTotal: this.sessionTotalTime,
+      levelId: levelId,
+      score: levelScoreData.levelPoints,
+      levelScoreData: levelScoreData,
+      totalScore: this.unifiedScoringSystem.getCurrentTotalScore(),
+    });
+
+    // Change to win screen state
+    this.gameState.setState(GameStateType.WIN_SCREEN);
+
+    logger.info(`🏆 Level ${levelId} completed! Total Score: ${this.unifiedScoringSystem.getCurrentTotalScore().toFixed(2)} - Showing win screen...`, null, 'Game');
+  }
+
+  /**
+   * Handle continue from win screen
+   */
+  private handleWinScreenContinue(): void {
+    this.winScreen = null;
+
+    if (!this.currentLevel) return;
+
+    // Get next level ID
+    const nextLevelId = this.currentLevel.getLevelData().id + 1;
+
     // Load next level or show completion
     if (this.levelManager.getLevelData(nextLevelId)) {
+      // Set game state back to playing before loading next level
+      this.gameState.setState(GameStateType.PLAYING);
       this.loadNextLevel(nextLevelId);
+      logger.info(`🎮 Continuing to Level ${nextLevelId}`, null, 'Game');
     } else {
       this.handleGameComplete();
     }
@@ -1846,14 +2227,22 @@ export class Game {
     // Update game progress
     this.gameProgress.gamesPlayed++;
     this.sessionStartTime = Date.now();
+    this.sessionTotalTime = 0; // Reset session total time for new game
+
+    // Start new scoring session
+    this.unifiedScoringSystem.startNewSession();
 
     // Reset game state
     this.gameState.setState(GameStateType.PLAYING);
     this.gameState.updateStateData({
       currentLevel: 1,
       score: 0,
+      totalScore: 0,
       lives: 3,
     });
+
+    // Regenerate all levels for fresh layouts each run
+    this.levelManager.regenerateLevels();
 
     // Load first level
     this.currentLevel = this.levelManager.loadLevel(1, (soundName: string) => {
@@ -1862,6 +2251,9 @@ export class Game {
     if (this.currentLevel) {
       this.currentLevel.start();
       this.levelCompletionHandled = false;
+      
+      // Start unified scoring system timer for this level
+      this.unifiedScoringSystem.startLevel(1);
       
       logger.info('🎯 Level 1 loaded and started', null, 'Game');
     }
@@ -2525,7 +2917,7 @@ export class Game {
     this.gameProgress = this.storageManager.createNewProgress();
     this.currentSaveSlot = slotId;
     
-    // Start new game
+    // Start new game (this will regenerate levels)
     this.startNewGame();
   }
 
@@ -2554,9 +2946,21 @@ export class Game {
   }
 
   /**
+   * Open how to play screen
+   */
+  public openHowToPlay(): void {
+    logger.info('❓ Opening how to play screen...', null, 'Game');
+    this.gameState.setState(GameStateType.HOW_TO_PLAY);
+    this.audioManager.playSound('ui_click');
+  }
+
+  /**
    * Handle debug input for power-up system
    */
   private handleDebugInput(): void {
+    // Only allow debug functions when debug mode is enabled
+    if (!this.gameState.isDebugMode()) return;
+
     // Toggle debug overlay with F1
     if (this.inputManager.isKeyJustPressed('F1')) {
       this.powerUpDebugger.toggle();
@@ -2576,6 +2980,40 @@ export class Game {
     // Test point fly-offs with F4
     if (this.inputManager.isKeyJustPressed('F4')) {
       this.testPointFlyOffs();
+    }
+
+    // Instant win current level with W key (only during gameplay)
+    if (this.inputManager.isKeyJustPressed('KeyW') && this.gameState.isPlaying()) {
+      this.debugInstantWin();
+    }
+  }
+
+  /**
+   * Debug function: Instantly win the current level (W key)
+   */
+  private debugInstantWin(): void {
+    if (!this.currentLevel) {
+      logger.warn('🧪 DEBUG: No current level to complete', null, 'Game');
+      return;
+    }
+
+    if (this.currentLevel.checkLevelComplete()) {
+      logger.warn('🧪 DEBUG: Level is already completed', null, 'Game');
+      return;
+    }
+
+    logger.info('🧪 DEBUG: Force completing current level...', null, 'Game');
+
+    // Force complete the level
+    this.currentLevel.debugForceComplete();
+
+    // Play completion sound
+    this.audioManager.playSound('level_complete');
+
+    // Trigger the level completion handling
+    if (!this.levelCompletionHandled) {
+      this.levelCompletionHandled = true;
+      this.handleLevelComplete();
     }
   }
 
@@ -2667,5 +3105,12 @@ export class Game {
     
     // Additional scale change handling can be added here
     // For example, updating UI elements or recalculating positions
+  }
+
+  /**
+   * Get current audio levels for visualization
+   */
+  public getAudioLevel(): number {
+    return this.audioManager.getAudioLevel();
   }
 }
