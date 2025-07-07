@@ -2,15 +2,90 @@
 
 🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/circuit-breaker/)** 🎮
 
-## Project Status: ANIMATED HOLES SYSTEM v1.0.1 ✅
+## Project Status: AUDIO-REACTIVE TITLE & UI POLISH v1.1.0 ✅
 
-**Date**: January 2025  
-**Phase**: Polish & UI Enhancements  
+**Date**: July 2025  
+**Phase**: Audio-Visual Polish & UX Enhancements  
 **Next Phase**: Advanced Power-Up Effects & Mobile Optimization  
 
 ---
 
-## Latest Development Updates - Version 1.0.1 🎯 POLISH & REFINEMENTS
+## Latest Development Updates - Version 1.1.0 🎵 DRAMATIC AUDIO-REACTIVE TITLE & UI POLISH
+
+### Phase 13: Audio-Reactive Main Title & Attract Mode Update ✅ COMPLETE
+
+#### Main Menu & Attract Mode Title
+- **Audio-Reactive Main Title**: The main menu and attract mode now feature a neon "CIRCUIT BREAKER" title that pulses and glows in sync with the music. The effect is dramatically obvious, with the stroke width and opacity ramping up on musical beats and fading out during quiet moments.
+- **Threshold Ramp**: The title's stroke is invisible for low audio levels, then ramps up rapidly for a bold, beat-synced effect.
+- **Attract Mode Title**: Attract mode now displays the main "CIRCUIT BREAKER" title at the top of the screen, using the same audio-reactive effect as the main menu for brand consistency.
+- **Visual Consistency**: Both screens use Electric Blue for the stroke and Neon Purple for the fill, with no color transition to pink.
+
+#### UI & Visual Polish
+- **Subtitle & Menu Polish**: Subtitle and menu elements updated for improved neon glow and visual hierarchy.
+- **Bug Fixes & Linting**: All recent UI and animation changes maintain zero linter errors and high code quality.
+
+#### Technical Implementation Details
+```typescript
+// Audio-reactive title stroke width ramp
+let strokeWidth = 0;
+if (pulseIntensity > 0.40) {
+  const rampProgress = (pulseIntensity - 0.40) / (1.0 - 0.25);
+  strokeWidth = rampProgress * 12;
+}
+ctx.lineWidth = strokeWidth;
+ctx.strokeStyle = `rgba(0, 240, 255, ${pulseIntensity})`;
+```
+
+---
+
+## Previous Development Updates - Version 1.0.1 🎯 POLISH & REFINEMENTS
+
+### Phase 12: Main Menu Redesign & How To Play Screen ✅ COMPLETE
+
+#### Main Menu Improvements
+- **Bright How To Play Button**: Added prominent orange pulsing button replacing the controls list for better user engagement
+- **Reorganized Layout**: Moved debug toggle to bottom, simplified menu shortcuts display for cleaner hierarchy
+- **Enhanced Visual Design**: Professional button styling with orange glow effects and hover feedback
+- **Improved User Experience**: Clear visual hierarchy guides users to key actions and information
+
+#### New How To Play Screen
+- **Comprehensive Guide**: Complete documentation of game objective, power-ups, and all control schemes
+- **Interactive Access**: Available via H key or clicking the bright button on main menu with audio feedback
+- **Mobile-Friendly Content**: Includes detailed touch control explanations and mobile-specific instructions
+- **Professional Presentation**: Full neon cyberpunk styling consistent with game theme and UI design
+- **Power-Up Documentation**: Detailed explanations of all six power-up types and saucer mechanics
+
+#### Navigation Enhancements
+- **ESC/Backspace Return**: Easy navigation back to main menu from How To Play screen
+- **Mouse Click Support**: Precise clickable button area detection for accurate interaction
+- **Audio Feedback**: UI click sounds for all How To Play interactions and state transitions
+- **Debug Toggle Access**: D key functionality available on How To Play screen for consistent experience
+
+#### Technical Implementation Details
+```typescript
+// New game state for How To Play screen
+export enum GameStateType {
+  HOW_TO_PLAY = 'how_to_play',
+  // ... other states
+}
+
+// Interactive button with click detection
+const buttonX = 180 - 90; // Button center minus half width
+const buttonY = 460;
+const buttonWidth = 180;
+const buttonHeight = 40;
+
+if (mousePos.x >= buttonX && mousePos.x <= buttonX + buttonWidth &&
+    mousePos.y >= buttonY && mousePos.y <= buttonY + buttonHeight) {
+  this.openHowToPlay(); // Navigate to How To Play screen
+}
+
+// Comprehensive content sections
+- Game Objective: Clear goal explanation and win conditions
+- Power-ups & Bonuses: All six power-up types with descriptions
+- Controls: Complete keyboard, touch, and menu navigation
+- Visual Design: Consistent cyberpunk neon styling
+```
 
 ### Phase 11: Saucer Visual Cleanup & Timing Improvements ✅ COMPLETE
 

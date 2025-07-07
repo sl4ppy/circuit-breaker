@@ -6,7 +6,7 @@
 
 ![Circuit Breaker Screenshot](docs/images/screenshot_01.png)
 
-*Circuit Breaker in action - Experience the neon cyberpunk pinball gameplay with professional loading screens, attract mode, and immersive audio-visual effects.*
+*Circuit Breaker in action - Experience the neon cyberpunk pinball gameplay with professional loading screens, attract mode, and immersive audio-visual effects. Now featuring a dramatic audio-reactive main title that pulses and glows in sync with the music!*
 
 ## Game Concept
 
@@ -19,6 +19,8 @@
 - **Animated Holes System**: Dynamic holes that appear/disappear with spring animation (v1.0.0)
 - **Power-Up Saucer System**: Pinball-style saucers that collect balls and grant power-ups
 - **Dynamic Audio Feedback**: Velocity-based sound effects for all interactions
+- **Audio-Reactive Main Title**: The main menu and attract mode now feature a neon title that pulses and glows in sync with the music, with dramatic stroke and opacity changes for maximum impact (v1.1.0)
+- **Attract Mode Title Update**: Attract mode now displays the main "CIRCUIT BREAKER" title at the top, using the same audio-reactive effect as the main menu (v1.1.0)
 
 ## Novel Technical Implementations
 
@@ -27,12 +29,11 @@
 - **Velocity-Based Audio Integration**: Collision sounds dynamically adapt to impact intensity
 - **Complex Tilting Bar Mechanics**: Independent left/right control with realistic friction and bounce
 
-
 ### Advanced Rendering Pipeline
 - **Sprite Atlas System**: Professional sprite rendering with procedural fallbacks
 - **Dynamic Depth Management**: Proper layering system (holes → bar/glow → ball)
 - **Saucer Visual Effects**: Phase-specific animations for sinking, waiting, and ejecting
-- **Attract Mode**: Automated gameplay demonstration with AI-controlled bar movement
+- **Attract Mode**: Automated gameplay demonstration with AI-controlled bar movement and now a dramatic audio-reactive title
 
 ## Roadmap
 

@@ -17,7 +17,7 @@
 ### Color Palette
 ```
 Primary Neon Colors:
-- Electric Blue: #00FFFF (cyan) - Data packets, safe zones
+- Electric Blue: #00FFFF (cyan) - Data packets, safe zones, main title stroke
 - Hot Pink: #FF00FF (magenta) - Hazards, warnings
 - Electric Green: #00FF00 (lime) - Success, targets
 - Bright Orange: #FF6600 (amber) - Energy, power sources
@@ -113,6 +113,13 @@ Background Colors:
 
 ## UI/HUD Elements
 
+### Main Menu & Attract Mode Title
+- **Audio-Reactive Main Title**: The "CIRCUIT BREAKER" title on the main menu and attract mode pulses and glows in sync with the music.
+- **Dramatic Stroke Ramp**: The Electric Blue (#00f0ff) stroke is invisible for low audio levels, then ramps up rapidly to a maximum of 12px thickness as the music intensifies.
+- **Threshold Effect**: No stroke is visible until the audio level exceeds 0.40, then the stroke width ramps up for a bold, beat-synced effect.
+- **Consistent Branding**: Attract mode now displays the main title at the top, using the same effect as the main menu for visual consistency.
+- **No Color Transition**: The stroke remains Electric Blue at all times, with only opacity and width changing.
+
 ### Main HUD Layout
 **Positioning**: Clean, minimal interface that doesn't obstruct gameplay
 
@@ -125,7 +132,7 @@ Background Colors:
 
 ### Menu System
 **Title Screen**:
-- **Game Logo**: Glowing "Circuit Breaker" text with neon effects
+- **Game Logo**: Glowing "Circuit Breaker" text with dramatic, audio-reactive neon effects
 - **Background**: Animated circuit board with floating elements
 - **Menu Options**: Glowing buttons with hover effects
 - **Particle Effects**: Ambient energy particles throughout
