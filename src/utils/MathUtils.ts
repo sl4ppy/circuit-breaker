@@ -162,6 +162,28 @@ export class MathUtils {
   }
 
   /**
+   * Ease out back function - starts fast and overshoots with a bounce back
+   * Creates a smooth animation that goes slightly past the target and snaps back
+   */
+  public static easeOutBack(x: number): number {
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    
+    return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
+  }
+
+  /**
+   * Ease in back function - starts slow then accelerates with anticipation
+   * Creates a smooth animation that pulls back slightly before accelerating forward
+   */
+  public static easeInBack(x: number): number {
+    const c1 = 1.70158;
+    const c3 = c1 + 1;
+    
+    return c3 * x * x * x - c1 * x * x;
+  }
+
+  /**
    * Elastic easing function - creates a spring-like bouncing effect
    */
   public static easeElastic(t: number): number {

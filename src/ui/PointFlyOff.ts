@@ -53,30 +53,32 @@ export class PointFlyOff {
    */
   private calculateInitialVelocity(): Vector2 {
     switch (this.config.animation) {
-      case 'fly-up':
-        return { x: 0, y: -80 }; // Straight up
+    case 'fly-up':
+      return { x: 0, y: -80 }; // Straight up
       
-      case 'arc':
-        // Random arc direction
-        const angle = (Math.random() - 0.5) * Math.PI * 0.6; // ±54 degrees
-        const speed = 60 + Math.random() * 40; // 60-100 pixels/second
-        return {
-          x: Math.sin(angle) * speed,
-          y: -Math.cos(angle) * speed
-        };
+    case 'arc': {
+      // Random arc direction
+      const angle = (Math.random() - 0.5) * Math.PI * 0.6; // ±54 degrees
+      const speed = 60 + Math.random() * 40; // 60-100 pixels/second
+      return {
+        x: Math.sin(angle) * speed,
+        y: -Math.cos(angle) * speed,
+      };
+    }
       
-      case 'explode':
-        // Random explosion direction
-        const explosionAngle = Math.random() * Math.PI * 2;
-        const explosionSpeed = 40 + Math.random() * 60;
-        return {
-          x: Math.cos(explosionAngle) * explosionSpeed,
-          y: Math.sin(explosionAngle) * explosionSpeed
-        };
+    case 'explode': {
+      // Random explosion direction
+      const explosionAngle = Math.random() * Math.PI * 2;
+      const explosionSpeed = 40 + Math.random() * 60;
+      return {
+        x: Math.cos(explosionAngle) * explosionSpeed,
+        y: Math.sin(explosionAngle) * explosionSpeed,
+      };
+    }
       
-      case 'fade':
-      default:
-        return { x: 0, y: -20 }; // Slight upward drift
+    case 'fade':
+    default:
+      return { x: 0, y: -20 }; // Slight upward drift
     }
   }
 
@@ -108,33 +110,36 @@ export class PointFlyOff {
     const dt = deltaTime / 1000; // Convert to seconds
 
     switch (this.config.animation) {
-      case 'fly-up':
-        // Simple upward movement with deceleration
-        const upwardSpeed = this.initialVelocity.y * (1 - progress * 0.3);
-        this.currentPosition.y += upwardSpeed * dt;
-        break;
+    case 'fly-up': {
+      // Simple upward movement with deceleration
+      const upwardSpeed = this.initialVelocity.y * (1 - progress * 0.3);
+      this.currentPosition.y += upwardSpeed * dt;
+      break;
+    }
 
-      case 'arc':
-        // Arc movement with gravity
-        const gravity = 150; // Pixels per second squared
-        this.currentPosition.x += this.initialVelocity.x * dt;
-        this.currentPosition.y += this.initialVelocity.y * dt;
-        this.initialVelocity.y += gravity * dt; // Apply gravity
-        break;
+    case 'arc': {
+      // Arc movement with gravity
+      const gravity = 150; // Pixels per second squared
+      this.currentPosition.x += this.initialVelocity.x * dt;
+      this.currentPosition.y += this.initialVelocity.y * dt;
+      this.initialVelocity.y += gravity * dt; // Apply gravity
+      break;
+    }
 
-      case 'explode':
-        // Explosive movement with decay
-        const decay = 0.95;
-        this.currentPosition.x += this.initialVelocity.x * dt;
-        this.currentPosition.y += this.initialVelocity.y * dt;
-        this.initialVelocity.x *= decay;
-        this.initialVelocity.y *= decay;
-        break;
+    case 'explode': {
+      // Explosive movement with decay
+      const decay = 0.95;
+      this.currentPosition.x += this.initialVelocity.x * dt;
+      this.currentPosition.y += this.initialVelocity.y * dt;
+      this.initialVelocity.x *= decay;
+      this.initialVelocity.y *= decay;
+      break;
+    }
 
-      case 'fade':
-        // Minimal movement, mostly fading
-        this.currentPosition.y += this.initialVelocity.y * dt;
-        break;
+    case 'fade':
+      // Minimal movement, mostly fading
+      this.currentPosition.y += this.initialVelocity.y * dt;
+      break;
     }
   }
 
@@ -143,34 +148,34 @@ export class PointFlyOff {
    */
   private updateVisualProperties(progress: number): void {
     switch (this.config.animation) {
-      case 'fly-up':
-        // Scale up briefly, then shrink and fade
-        if (progress < 0.2) {
-          this.currentScale = 1 + progress * 2; // Scale up to 1.4x
-        } else {
-          this.currentScale = 1.4 - (progress - 0.2) * 1.75; // Scale back down
-        }
-        this.currentOpacity = 1 - Math.pow(progress, 1.5);
-        break;
+    case 'fly-up':
+      // Scale up briefly, then shrink and fade
+      if (progress < 0.2) {
+        this.currentScale = 1 + progress * 2; // Scale up to 1.4x
+      } else {
+        this.currentScale = 1.4 - (progress - 0.2) * 1.75; // Scale back down
+      }
+      this.currentOpacity = 1 - Math.pow(progress, 1.5);
+      break;
 
-      case 'arc':
-        // Maintain scale, fade out gradually
-        this.currentScale = 1 + progress * 0.3; // Slight growth
-        this.currentOpacity = 1 - Math.pow(progress, 2);
-        break;
+    case 'arc':
+      // Maintain scale, fade out gradually
+      this.currentScale = 1 + progress * 0.3; // Slight growth
+      this.currentOpacity = 1 - Math.pow(progress, 2);
+      break;
 
-      case 'explode':
-        // Rapid scale up and fade
-        this.currentScale = 1 + progress * 1.5;
-        this.currentOpacity = 1 - Math.pow(progress, 1.2);
-        this.currentRotation = progress * Math.PI * 4; // Spin during explosion
-        break;
+    case 'explode':
+      // Rapid scale up and fade
+      this.currentScale = 1 + progress * 1.5;
+      this.currentOpacity = 1 - Math.pow(progress, 1.2);
+      this.currentRotation = progress * Math.PI * 4; // Spin during explosion
+      break;
 
-      case 'fade':
-        // Gentle scale and fade
-        this.currentScale = 1 + progress * 0.5;
-        this.currentOpacity = 1 - progress;
-        break;
+    case 'fade':
+      // Gentle scale and fade
+      this.currentScale = 1 + progress * 0.5;
+      this.currentOpacity = 1 - progress;
+      break;
     }
 
     // Ensure values stay in valid ranges
@@ -268,7 +273,7 @@ export class PointFlyOffFactory {
       fontSize: 20,
       duration: 1500,
       animation: 'fly-up',
-      fontFamily: 'Interceptor'
+      fontFamily: 'Interceptor',
     });
   }
 
@@ -283,7 +288,7 @@ export class PointFlyOffFactory {
       fontSize: 16,
       duration: 1200,
       animation: 'arc',
-      fontFamily: 'Interceptor'
+      fontFamily: 'Interceptor',
     });
   }
 
@@ -298,7 +303,7 @@ export class PointFlyOffFactory {
       fontSize: 24,
       duration: 2000,
       animation: 'explode',
-      fontFamily: 'Cyberpunks'
+      fontFamily: 'Cyberpunks',
     });
   }
 
@@ -313,7 +318,7 @@ export class PointFlyOffFactory {
       fontSize: 18,
       duration: 1300,
       animation: 'arc',
-      fontFamily: 'Interceptor'
+      fontFamily: 'Interceptor',
     });
   }
 
@@ -328,7 +333,7 @@ export class PointFlyOffFactory {
       fontSize: 22,
       duration: 1800,
       animation: 'explode',
-      fontFamily: 'Cyberpunks'
+      fontFamily: 'Cyberpunks',
     });
   }
 
@@ -343,7 +348,7 @@ export class PointFlyOffFactory {
       fontSize: 19,
       duration: 1400,
       animation: 'fly-up',
-      fontFamily: 'Interceptor'
+      fontFamily: 'Interceptor',
     });
 
     // Add multiplier indicator (could extend this in the future)

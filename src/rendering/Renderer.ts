@@ -178,10 +178,10 @@ export class Renderer {
 
     // Use sprite atlas if available, otherwise fallback to line rendering
     const atlasLoaded = spriteAtlas.isAtlasLoaded();
-          if (this.spritesLoaded && atlasLoaded) {
-        const barFrame = spriteAtlas.getFrame('bar_normal');
+    if (this.spritesLoaded && atlasLoaded) {
+      const barFrame = spriteAtlas.getFrame('bar_normal');
 
-        if (barFrame) {
+      if (barFrame) {
         // Calculate bar properties
         const barLength = Math.sqrt(
           Math.pow(endpoints.end.x - endpoints.start.x, 2) +
@@ -621,11 +621,11 @@ export class Renderer {
     } else {
       // Fallback to procedural rendering if atlas not loaded
       
-              // Don't render animated holes if in hidden phase or scale is essentially 0
-        if (hole.animationState?.isAnimated && (hole.animationState.phase === 'hidden' || hole.animationState.currentScale < 0.001)) {
-          this.ctx.restore();
-          return;
-        }
+      // Don't render animated holes if in hidden phase or scale is essentially 0
+      if (hole.animationState?.isAnimated && (hole.animationState.phase === 'hidden' || hole.animationState.currentScale < 0.001)) {
+        this.ctx.restore();
+        return;
+      }
       
       this.renderHoleFallback(
         hole,
@@ -834,12 +834,7 @@ export class Renderer {
         this.ctx.stroke();
       }
 
-      // Draw "SINKING" text
-      this.ctx.fillStyle = color;
-      this.ctx.font = '8px Interceptor';
-      this.ctx.textAlign = 'center';
-      this.ctx.globalAlpha = 0.9;
-      this.ctx.fillText('SINKING', centerX, centerY + radius + 20);
+
 
     } else if (saucerState.phase === 'waiting') {
       // Waiting phase - steady glow with pulsing
@@ -881,12 +876,7 @@ export class Renderer {
         this.ctx.stroke();
       }
 
-      // Draw "WAITING" text
-      this.ctx.fillStyle = color;
-      this.ctx.font = '8px Interceptor';
-      this.ctx.textAlign = 'center';
-      this.ctx.globalAlpha = 0.9;
-      this.ctx.fillText('WAITING', centerX, centerY + radius + 20);
+
 
     } else if (saucerState.phase === 'ejecting') {
       // Ejecting phase - intense glow with upward motion
@@ -909,12 +899,7 @@ export class Renderer {
         this.ctx.stroke();
       }
 
-      // Draw "EJECTING" text
-      this.ctx.fillStyle = color;
-      this.ctx.font = '8px Interceptor';
-      this.ctx.textAlign = 'center';
-      this.ctx.globalAlpha = 0.9;
-      this.ctx.fillText('EJECTING', centerX, centerY + radius + 20);
+
     }
 
     this.ctx.restore();

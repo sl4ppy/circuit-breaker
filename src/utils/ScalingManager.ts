@@ -86,12 +86,17 @@ export class ScalingManager {
       canvasWidth,
       canvasHeight,
       offsetX,
-      offsetY
+      offsetY,
     };
 
     this.currentScale = scale;
     
-    logger.debug(`📐 Scaling calculated: ${scale}x (${displayWidth}x${displayHeight})`, null, 'ScalingManager');
+    logger.debug(`📐 Scaling calculated: ${scale}x (${displayWidth}x${displayHeight})`, {
+      window: `${windowWidth}x${windowHeight}`,
+      scaleFactors: `X:${scaleX.toFixed(2)}, Y:${scaleY.toFixed(2)}`,
+      forceInteger: this.config.forceIntegerScaling,
+      finalScale: scale,
+    }, 'ScalingManager');
     
     return result;
   }

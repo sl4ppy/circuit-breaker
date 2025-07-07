@@ -257,7 +257,7 @@ export class StorageManager {
       'version', 'lastSaved', 'currentLevel', 'highestLevel',
       'totalScore', 'lives', 'completedLevels', 'highScores',
       'achievements', 'settings', 'playTime', 'gamesPlayed',
-      'totalBallsLost', 'totalGoalsReached'
+      'totalBallsLost', 'totalGoalsReached',
     ];
     
     for (const field of requiredFields) {

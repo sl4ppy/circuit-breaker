@@ -509,7 +509,7 @@ export class GameLoop {
     ctx.fillStyle = '#444444';
     fontManager.setFont(ctx, 'primary', 8);
     ctx.fillText('Circuit Breaker v0.6.0', 180, 590);
-    ctx.fillText('Created by Chris Van Doren in July of 2025', 180, 605);
+    ctx.fillText('Chris Van Doren - July 2025', 180, 605);
   }
 
   /**

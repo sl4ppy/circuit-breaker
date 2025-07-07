@@ -102,7 +102,7 @@ export class SpriteAtlas {
       `🎨 ${name} atlas loaded with`,
       Object.keys(atlasData.frames).length,
       'sprites:',
-      Object.keys(atlasData.frames).join(', ')
+      Object.keys(atlasData.frames).join(', '),
     );
   }
 

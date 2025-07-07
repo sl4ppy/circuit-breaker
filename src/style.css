@@ -88,12 +88,20 @@ body {
   justify-content: center;
   align-items: center;
   background: linear-gradient(135deg, var(--deep-black) 0%, var(--dark-gray) 100%);
+  overflow: hidden; /* Prevent scrollbars on mobile */
+  position: fixed; /* Ensure full-screen on mobile */
+  top: 0;
+  left: 0;
 }
 
 #game-canvas {
   border: 2px solid var(--neon-cyan);
   background: var(--dark-gray);
   box-shadow: 0 0 20px var(--neon-cyan);
+  touch-action: none; /* Prevent default touch behaviors */
+  -webkit-touch-callout: none; /* Disable iOS context menu */
+  -webkit-user-select: none; /* Prevent text selection */
+  user-select: none;
 }
 
 .loading {
@@ -149,13 +157,43 @@ p {
   box-shadow: 0 0 10px var(--neon-green);
 }
 
-/* Responsive design */
+/* Mobile-specific optimizations */
 @media (max-width: 768px) {
+  body {
+    /* Prevent mobile browser UI from affecting viewport */
+    height: 100vh;
+    height: 100dvh; /* Dynamic viewport height for mobile browsers */
+    overflow: hidden;
+  }
+  
+  #game-container {
+    height: 100vh;
+    height: 100dvh; /* Use dynamic viewport height on mobile */
+    /* Ensure game doesn't get cut off by mobile browser UI */
+    min-height: -webkit-fill-available;
+  }
+  
+  #game-canvas {
+    /* Improve touch responsiveness */
+    touch-action: manipulation;
+    max-width: 100vw;
+    max-height: 100vh;
+    max-height: 100dvh;
+  }
+  
   h1 {
     font-size: 2rem;
   }
   
   p {
     font-size: 1rem;
+  }
+}
+
+/* Handle landscape orientation on mobile */
+@media (max-width: 768px) and (orientation: landscape) {
+  #game-container {
+    height: 100vh;
+    height: 100dvh;
   }
 } 

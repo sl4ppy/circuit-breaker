@@ -53,31 +53,31 @@ export class StatsMenu {
    */
   public handleInput(key: string): void {
     switch (key) {
-      case 'Escape':
-        this.config.onClose();
-        break;
-      case 'Digit1':
-      case '1':
-        this.currentTab = 'overview';
-        break;
-      case 'Digit2':
-      case '2':
-        this.currentTab = 'levels';
-        break;
-      case 'Digit3':
-      case '3':
-        this.currentTab = 'performance';
-        break;
-      case 'Digit4':
-      case '4':
-        this.currentTab = 'sessions';
-        break;
-      case 'ArrowUp':
-        this.scrollOffset = Math.max(0, this.scrollOffset - this.SCROLL_SPEED);
-        break;
-      case 'ArrowDown':
-        this.scrollOffset += this.SCROLL_SPEED;
-        break;
+    case 'Escape':
+      this.config.onClose();
+      break;
+    case 'Digit1':
+    case '1':
+      this.currentTab = 'overview';
+      break;
+    case 'Digit2':
+    case '2':
+      this.currentTab = 'levels';
+      break;
+    case 'Digit3':
+    case '3':
+      this.currentTab = 'performance';
+      break;
+    case 'Digit4':
+    case '4':
+      this.currentTab = 'sessions';
+      break;
+    case 'ArrowUp':
+      this.scrollOffset = Math.max(0, this.scrollOffset - this.SCROLL_SPEED);
+      break;
+    case 'ArrowDown':
+      this.scrollOffset += this.SCROLL_SPEED;
+      break;
     }
   }
 
@@ -171,18 +171,18 @@ export class StatsMenu {
     ctx.translate(0, -this.scrollOffset);
 
     switch (this.currentTab) {
-      case 'overview':
-        this.drawOverviewContent(ctx, contentY);
-        break;
-      case 'levels':
-        this.drawLevelsContent(ctx, contentY);
-        break;
-      case 'performance':
-        this.drawPerformanceContent(ctx, contentY);
-        break;
-      case 'sessions':
-        this.drawSessionsContent(ctx, contentY);
-        break;
+    case 'overview':
+      this.drawOverviewContent(ctx, contentY);
+      break;
+    case 'levels':
+      this.drawLevelsContent(ctx, contentY);
+      break;
+    case 'performance':
+      this.drawPerformanceContent(ctx, contentY);
+      break;
+    case 'sessions':
+      this.drawSessionsContent(ctx, contentY);
+      break;
     }
 
     ctx.restore();

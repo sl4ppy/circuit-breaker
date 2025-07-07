@@ -115,39 +115,39 @@ export class StatsManager {
   public recordEvent(event: StatsEvent): void {
     try {
       switch (event.type) {
-        case 'game_start':
-          this.handleGameStart(event);
-          break;
-        case 'game_complete':
-          this.handleGameComplete(event);
-          break;
-        case 'level_start':
-          this.handleLevelStart(event);
-          break;
-        case 'level_complete':
-          this.handleLevelComplete(event);
-          break;
-        case 'goal_reached':
-          this.handleGoalReached(event);
-          break;
-        case 'ball_lost':
-          this.handleBallLost(event);
-          break;
-        case 'death':
-          this.handleDeath(event);
-          break;
-        case 'session_start':
-          this.handleSessionStart(event);
-          break;
-        case 'session_end':
-          this.handleSessionEnd(event);
-          break;
-        case 'fps_update':
-          this.handleFPSUpdate(event);
-          break;
-        case 'achievement_unlocked':
-          this.handleAchievementUnlocked(event);
-          break;
+      case 'game_start':
+        this.handleGameStart(event);
+        break;
+      case 'game_complete':
+        this.handleGameComplete(event);
+        break;
+      case 'level_start':
+        this.handleLevelStart(event);
+        break;
+      case 'level_complete':
+        this.handleLevelComplete(event);
+        break;
+      case 'goal_reached':
+        this.handleGoalReached(event);
+        break;
+      case 'ball_lost':
+        this.handleBallLost(event);
+        break;
+      case 'death':
+        this.handleDeath(event);
+        break;
+      case 'session_start':
+        this.handleSessionStart(event);
+        break;
+      case 'session_end':
+        this.handleSessionEnd(event);
+        break;
+      case 'fps_update':
+        this.handleFPSUpdate(event);
+        break;
+      case 'achievement_unlocked':
+        this.handleAchievementUnlocked(event);
+        break;
       }
 
       // Auto-save stats periodically
@@ -221,14 +221,14 @@ export class StatsManager {
         return false;
       }
 
-              // Convert levelStats back to Map
-        if (importedStats.levelStats && typeof importedStats.levelStats === 'object') {
-          const levelStatsMap = new Map<number, LevelStats>();
-          for (const [key, value] of Object.entries(importedStats.levelStats)) {
-            levelStatsMap.set(parseInt(key), value as LevelStats);
-          }
-          importedStats.levelStats = levelStatsMap;
+      // Convert levelStats back to Map
+      if (importedStats.levelStats && typeof importedStats.levelStats === 'object') {
+        const levelStatsMap = new Map<number, LevelStats>();
+        for (const [key, value] of Object.entries(importedStats.levelStats)) {
+          levelStatsMap.set(parseInt(key), value as LevelStats);
         }
+        importedStats.levelStats = levelStatsMap;
+      }
 
       this.stats = importedStats;
       this.saveStats();
@@ -250,7 +250,7 @@ export class StatsManager {
     averageScore: number;
     favoriteLevel: number;
     mostChallengingLevel: number;
-  } {
+    } {
     const totalPlayTime = this.formatPlayTime(this.stats.totalPlayTime);
     const gamesPlayed = this.stats.totalGamesStarted;
     const completionRate = this.stats.averageCompletionRate.toFixed(1) + '%';

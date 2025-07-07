@@ -226,6 +226,26 @@ export class AudioManager {
       pitch: 1.0,
     });
 
+    // Hole appear sound - ethereal whoosh
+    const holeAppearBuffer = this.createHoleAppearSound();
+    this.soundEffects.set('hole_appear', {
+      id: 'hole_appear',
+      buffer: holeAppearBuffer,
+      volume: 0.5,
+      loop: false,
+      pitch: 1.0,
+    });
+
+    // Hole disappear sound - reverse whoosh
+    const holeDisappearBuffer = this.createHoleDisappearSound();
+    this.soundEffects.set('hole_disappear', {
+      id: 'hole_disappear',
+      buffer: holeDisappearBuffer,
+      volume: 0.5,
+      loop: false,
+      pitch: 1.0,
+    });
+
     logger.info(
       `🎵 Created ${this.soundEffects.size} procedural sound effects`,
       null,
@@ -577,6 +597,70 @@ export class AudioManager {
       const protection = Math.sin(2 * Math.PI * 100 * t) * 0.1;
 
       data[i] = (hum + resonance + protection) * envelope;
+    }
+
+    return buffer;
+  }
+
+  /**
+   * Create hole appear sound - ethereal whoosh
+   */
+  private createHoleAppearSound(): AudioBuffer | null {
+    if (!this.audioContext) return null;
+
+    const sampleRate = this.audioContext.sampleRate;
+    const duration = 0.4;
+    const length = sampleRate * duration;
+    const buffer = this.audioContext.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < length; i++) {
+      const t = i / sampleRate;
+      const envelope = Math.sin(Math.PI * t); // Bell-shaped envelope
+
+      // Ascending pitch whoosh
+      const frequency = 200 + Math.pow(t, 2) * 400; // 200Hz to 600Hz
+      const whoosh = Math.sin(2 * Math.PI * frequency * t) * 0.4;
+      
+      // Add some sparkle
+      const sparkle = Math.sin(2 * Math.PI * (800 + Math.random() * 200) * t) * 0.2;
+      
+      // Ethereal reverb-like effect
+      const reverb = Math.sin(2 * Math.PI * 300 * t) * 0.1;
+
+      data[i] = (whoosh + sparkle + reverb) * envelope;
+    }
+
+    return buffer;
+  }
+
+  /**
+   * Create hole disappear sound - reverse whoosh
+   */
+  private createHoleDisappearSound(): AudioBuffer | null {
+    if (!this.audioContext) return null;
+
+    const sampleRate = this.audioContext.sampleRate;
+    const duration = 0.4;
+    const length = sampleRate * duration;
+    const buffer = this.audioContext.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < length; i++) {
+      const t = i / sampleRate;
+      const envelope = Math.sin(Math.PI * t); // Bell-shaped envelope
+
+      // Descending pitch whoosh (reverse of appear)
+      const frequency = 600 - Math.pow(t, 2) * 400; // 600Hz to 200Hz
+      const whoosh = Math.sin(2 * Math.PI * frequency * t) * 0.4;
+      
+      // Add some fading sparkle
+      const sparkle = Math.sin(2 * Math.PI * (400 - t * 200) * t) * 0.2;
+      
+      // Fading reverb-like effect
+      const reverb = Math.sin(2 * Math.PI * 150 * t) * 0.1;
+
+      data[i] = (whoosh + sparkle + reverb) * envelope;
     }
 
     return buffer;

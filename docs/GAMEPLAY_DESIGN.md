@@ -37,17 +37,19 @@ Guide a glowing data packet from the bottom of a vertical circuit board to an il
 ## Controls
 
 ### Primary Input Methods
-- **Keyboard**: Arrow keys or WASD for bar tilting
-- **Mouse**: Click and drag for direct bar manipulation
-- **Touch**: Swipe gestures for mobile compatibility
+- **Keyboard**: Independent left/right side controls (A/Z for left, Arrow/L/Comma for right)
+- **Touch**: Position-based controls - touch above or below each side of the bar to move it up/down
+- **Mouse**: Same as touch - click above/below bar sides for precise control
 - **Gamepad**: Analog stick support for console-style play
 
 ### Control Mapping
 ```
-Left Tilt:  A, Left Arrow, or Left Mouse/Touch
-Right Tilt: D, Right Arrow, or Right Mouse/Touch
-Reset Level: R, Space, or Reset Button
-Pause:      Escape or Pause Button
+Left Side Up:   A, or Touch Above Left Side of Bar
+Left Side Down: Z, or Touch Below Left Side of Bar
+Right Side Up:  Up Arrow, L, or Touch Above Right Side of Bar
+Right Side Down: Down Arrow, Comma (,), or Touch Below Right Side of Bar
+Reset Level:    R, Space, or Reset Button
+Pause:          P, Escape, or Pause Button
 ```
 
 ### Bar Mechanics
@@ -55,6 +57,16 @@ Pause:      Escape or Pause Button
 - **Smooth Movement**: Gradual tilting with momentum and physics
 - **Responsive Input**: Immediate response to player commands
 - **Visual Feedback**: Bar position clearly visible and intuitive
+
+### Touch Control System
+- **Intuitive Positioning**: Touch where you want the bar to move
+- **Side Detection**: Left half of screen controls left side, right half controls right side
+- **Directional Control**: Touch above bar side to raise it, below to lower it
+- **Multi-Touch Support**: Use multiple fingers simultaneously - control both sides independently
+- **Strongest Input Priority**: Multiple touches on same side use the strongest input value
+- **Visual Indicators**: Green arrows show active up movement, orange shows down movement (debug mode only)
+- **Smooth Response**: Continuous control based on distance from bar
+- **Keyboard Override**: Keyboard inputs take priority when pressed, allowing mixed control schemes
 
 ## Physics Behavior
 
@@ -100,8 +112,8 @@ Pause:      Escape or Pause Button
 - **Special Mechanics**: Teleporters, speed zones, barriers
 
 ### Dynamic Animated Holes (v1.0.0)
-- **Appearance**: Holes spring into view with smooth overshoot animation
-- **Timing**: 1-second animation in, 3-10 seconds active, 1-second animation out, 2-5 seconds hidden
+- **Asymmetric Animation**: Holes appear with easeOutBack (bouncy entrance) and disappear with easeInBack (smooth acceleration)
+- **Timing**: 0.5-second animation in, 3-10 seconds active, 0.5-second animation out, 2-5 seconds hidden
 - **Positioning**: Only appear in top half of playfield for balanced difficulty
 - **Scaling**: 2-3 holes in early levels, increasing with level progression
 - **Collision**: Only active for collision when fully visible, creating dynamic obstacle patterns

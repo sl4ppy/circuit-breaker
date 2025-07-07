@@ -11,6 +11,7 @@ import { LevelManager, Level, Hole } from './Level';
 import { AudioManager } from '../audio/AudioManager';
 import { fontManager } from '../utils/FontManager';
 import { logger } from '../utils/Logger';
+import { ScalingManager } from '../utils/ScalingManager';
 import { SettingsMenu } from '../ui/SettingsMenu';
 import { SaveLoadMenu } from '../ui/SaveLoadMenu';
 import { AchievementNotification } from '../ui/AchievementNotification';
@@ -112,7 +113,7 @@ export class Game {
         showCacheStats: true,
         showValidation: true,
         logLevel: 'warn',
-      }
+      },
     );
     
     // Setup power-up event callbacks
@@ -305,7 +306,7 @@ export class Game {
       };
 
       // Initialize input manager
-      this.inputManager.init(canvas);
+      this.inputManager.init(canvas, this.tiltingBar);
 
       // Initialize audio system
       await this.audioManager.init();
@@ -348,14 +349,16 @@ export class Game {
       // Initialize power-ups for the run
       this.powerUpManager.initializeRun();
       
-          // Load the first level
-    this.currentLevel = this.levelManager.loadLevel(1);
-    if (this.currentLevel) {
-      this.currentLevel.start();
-      this.levelCompletionHandled = false; // Initialize completion flag
+      // Load the first level
+      this.currentLevel = this.levelManager.loadLevel(1, (soundName: string) => {
+        this.audioManager.playSound(soundName);
+      });
+      if (this.currentLevel) {
+        this.currentLevel.start();
+        this.levelCompletionHandled = false; // Initialize completion flag
       
-      logger.info('🎯 Level 1 loaded and started', null, 'Game');
-    }
+        logger.info('🎯 Level 1 loaded and started', null, 'Game');
+      }
 
       this.isRunning = true;
       
@@ -745,6 +748,98 @@ export class Game {
         ctx.fillText(`Score: ${this.gameState.getStateData().score}`, 10, 35);
         ctx.fillText(`Lives: ${this.gameState.getStateData().lives}`, 10, 50);
 
+        // Debug information (only visible in debug mode)
+        if (this.gameState.isDebugMode()) {
+          ctx.fillStyle = '#ffffff';
+          fontManager.setFont(ctx, 'primary', 8);
+          ctx.textAlign = 'left';
+          
+          // Show device detection info
+          const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                           window.innerWidth <= 768;
+          ctx.fillText(`Device: ${isMobile ? 'Mobile' : 'Desktop'}`, 10, 80);
+          ctx.fillText(`Window: ${window.innerWidth}x${window.innerHeight}`, 10, 95);
+          
+          try {
+            const scalingManager = ScalingManager.getInstance();
+            const currentScale = scalingManager.getCurrentScale();
+            const config = scalingManager.getConfig();
+            ctx.fillText(`Scale: ${currentScale.toFixed(2)}x (min: ${config.minScale})`, 10, 110);
+            ctx.fillText(`ForceInt: ${config.forceIntegerScaling}`, 10, 125);
+            
+            // Show canvas size info
+            const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
+            if (canvas) {
+              ctx.fillText(`Canvas: ${canvas.width}x${canvas.height}`, 10, 140);
+              ctx.fillText(`Style: ${canvas.style.width} x ${canvas.style.height}`, 10, 155);
+            }
+          } catch (e) {
+            ctx.fillText('Scale: Error', 10, 110);
+          }
+
+          // Touch indicator and control feedback
+          const inputState = this.inputManager.getInputState();
+          const leftInput = this.inputManager.getLeftSideInput();
+          const rightInput = this.inputManager.getRightSideInput();
+          
+          // Show current side inputs
+          ctx.fillText(`Left: ${leftInput.toFixed(2)} Right: ${rightInput.toFixed(2)}`, 260, 35);
+          
+          if (inputState.mouse.isDown) {
+            // Main touch indicator
+            ctx.fillStyle = '#00ff00'; // Green when touch/mouse is active
+            ctx.fillRect(340, 10, 15, 15);
+            ctx.fillStyle = '#ffffff';
+            fontManager.setFont(ctx, 'primary', 8);
+            ctx.textAlign = 'center';
+            ctx.fillText('T', 347, 20);
+            
+            // Left side visual feedback
+            if (leftInput !== 0) {
+              ctx.fillStyle = leftInput > 0 ? '#00ff00' : '#ff6600'; // Green for up, orange for down
+              ctx.fillRect(10, 130, 30, 15);
+              ctx.fillStyle = '#ffffff';
+              ctx.textAlign = 'center';
+              ctx.fillText(leftInput > 0 ? 'L↑' : 'L↓', 25, 141);
+            }
+            
+            // Right side visual feedback
+            if (rightInput !== 0) {
+              ctx.fillStyle = rightInput > 0 ? '#00ff00' : '#ff6600'; // Green for up, orange for down
+              ctx.fillRect(320, 130, 30, 15);
+              ctx.fillStyle = '#ffffff';
+              ctx.textAlign = 'center';
+              ctx.fillText(rightInput > 0 ? 'R↑' : 'R↓', 335, 141);
+            }
+            
+            ctx.fillStyle = '#00f0ff'; // Reset color
+            ctx.textAlign = 'left';
+            ctx.fillText('Touch Above/Below Bar Sides', 260, 50);
+            
+            // Show scaling debug info
+            try {
+              const scalingManager = ScalingManager.getInstance();
+              const currentScale = scalingManager.getCurrentScale();
+              ctx.fillText(`Scale: ${currentScale.toFixed(2)}x`, 260, 65);
+              ctx.fillText(`Screen: ${window.innerWidth}x${window.innerHeight}`, 10, 110);
+            } catch (e) {
+              ctx.fillText('Scale: Error', 260, 65);
+            }
+          } else {
+            ctx.fillText('Touch Above/Below Bar to Control', 260, 50);
+            
+            // Show scaling debug info even when not touching
+            try {
+              const scalingManager = ScalingManager.getInstance();
+              const currentScale = scalingManager.getCurrentScale();
+              ctx.fillText(`Scale: ${currentScale.toFixed(2)}x`, 260, 65);
+              ctx.fillText(`Screen: ${window.innerWidth}x${window.innerHeight}`, 10, 110);
+            } catch (e) {
+              ctx.fillText('Scale: Error', 260, 65);
+            }
+          }
+        }
+
         // Debug info (only when debug mode is enabled)
         if (this.gameState.isDebugMode()) {
           ctx.fillText(
@@ -779,7 +874,7 @@ export class Game {
         fontManager.setFont(ctx, 'primary', 10);
         ctx.textAlign = 'center';
         ctx.fillText(
-          'SPACE: Start | Left: A(up)/Z(down) | Right: ↑(up)/↓(down)',
+          'SPACE: Start | Keys: A/Z (left) ↑/↓/L/, (right) | Touch: Above/Below Bar',
           180,
           580,
         );
@@ -852,18 +947,18 @@ export class Game {
     ctx.save();
 
     switch (effect.type) {
-      case 'overlay':
-        this.renderOverlayEffect(ctx, effect.data);
-        break;
-      case 'glow':
-        this.renderGlowEffect(ctx, effect.data);
-        break;
-      case 'particle':
-        this.renderParticleEffect(ctx, effect.data);
-        break;
-      case 'animation':
-        this.renderAnimationEffect(ctx, effect.data);
-        break;
+    case 'overlay':
+      this.renderOverlayEffect(ctx, effect.data);
+      break;
+    case 'glow':
+      this.renderGlowEffect(ctx, effect.data);
+      break;
+    case 'particle':
+      this.renderParticleEffect(ctx, effect.data);
+      break;
+    case 'animation':
+      this.renderAnimationEffect(ctx, effect.data);
+      break;
     }
 
     ctx.restore();
@@ -930,7 +1025,7 @@ export class Game {
     
     const gradient = ctx.createRadialGradient(
       targetPosition.x, targetPosition.y, 0,
-      targetPosition.x, targetPosition.y, radius
+      targetPosition.x, targetPosition.y, radius,
     );
     
     gradient.addColorStop(0, data.color || '#ffffff');
@@ -942,7 +1037,7 @@ export class Game {
       targetPosition.x - radius,
       targetPosition.y - radius,
       radius * 2,
-      radius * 2
+      radius * 2,
     );
   }
 
@@ -1242,7 +1337,9 @@ export class Game {
       data: { levelId },
     });
 
-    this.currentLevel = this.levelManager.loadLevel(levelId);
+    this.currentLevel = this.levelManager.loadLevel(levelId, (soundName: string) => {
+      this.audioManager.playSound(soundName);
+    });
     if (this.currentLevel) {
       this.currentLevel.start();
       this.gameState.updateStateData({ currentLevel: levelId });
@@ -1474,7 +1571,7 @@ export class Game {
     // Apply kick force to ball
     const kickVelocity = {
       x: kickData.direction.x * kickData.force,
-      y: kickData.direction.y * kickData.force
+      y: kickData.direction.y * kickData.force,
     };
 
     // Update ball physics
@@ -1553,7 +1650,7 @@ export class Game {
     this.pointFlyOffManager.showPowerUpCollect(
       powerUpPoints,
       hole.position,
-      powerUpColor
+      powerUpColor,
     );
 
     // Don't deactivate the hole immediately - let saucer handle it
@@ -1609,7 +1706,7 @@ export class Game {
     // Show level completion fly-off animation in center of screen
     this.pointFlyOffManager.showLevelComplete(
       levelScore,
-      { x: 180, y: 320 } // Center of 360x640 screen
+      { x: 180, y: 320 }, // Center of 360x640 screen
     );
 
     logger.info(`🎉 Level bonus: ${levelScore}`, null, 'Game');
@@ -1759,7 +1856,9 @@ export class Game {
     });
 
     // Load first level
-    this.currentLevel = this.levelManager.loadLevel(1);
+    this.currentLevel = this.levelManager.loadLevel(1, (soundName: string) => {
+      this.audioManager.playSound(soundName);
+    });
     if (this.currentLevel) {
       this.currentLevel.start();
       this.levelCompletionHandled = false;
@@ -1975,7 +2074,9 @@ export class Game {
   private startAttractModeLevel(): void {
     try {
       // Load level 1 for demonstration (use same method as startNewGame)
-      this.currentLevel = this.levelManager.loadLevel(1);
+      this.currentLevel = this.levelManager.loadLevel(1, (soundName: string) => {
+        this.audioManager.playSound(soundName);
+      });
 
       if (this.currentLevel) {
         logger.debug('🎮 Starting attract mode level', null, 'Game');
@@ -2509,7 +2610,7 @@ export class Game {
       { x: 180, y: 300 },
       { x: 260, y: 400 },
       { x: 50, y: 500 },
-      { x: 310, y: 150 }
+      { x: 310, y: 150 },
     ];
 
     // Test goal hit
@@ -2537,18 +2638,18 @@ export class Game {
    */
   private getPowerUpColor(powerUpType: PowerUpType): string {
     switch (powerUpType) {
-      case PowerUpType.SLOW_MO_SURGE:
-        return '#00ffff'; // Cyan
-      case PowerUpType.MAGNETIC_GUIDE:
-        return '#ff00ff'; // Magenta
-      case PowerUpType.CIRCUIT_PATCH:
-        return '#00ff00'; // Green
-      case PowerUpType.OVERCLOCK_BOOST:
-        return '#ffaa00'; // Orange
-      case PowerUpType.SCAN_REVEAL:
-        return '#ffff00'; // Yellow
-      default:
-        return '#ff6600'; // Default orange
+    case PowerUpType.SLOW_MO_SURGE:
+      return '#00ffff'; // Cyan
+    case PowerUpType.MAGNETIC_GUIDE:
+      return '#ff00ff'; // Magenta
+    case PowerUpType.CIRCUIT_PATCH:
+      return '#00ff00'; // Green
+    case PowerUpType.OVERCLOCK_BOOST:
+      return '#ffaa00'; // Orange
+    case PowerUpType.SCAN_REVEAL:
+      return '#ffff00'; // Yellow
+    default:
+      return '#ff6600'; // Default orange
     }
   }
 

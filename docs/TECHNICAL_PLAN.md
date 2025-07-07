@@ -97,7 +97,7 @@ Input Events → Input Manager → Game Actions → Game Logic
 ```
 
 ### Supported Input Methods
-1. **Keyboard**: Arrow keys, WASD, Space, Escape
+1. **Keyboard**: Arrow keys, A/Z keys, L/Comma keys, Space, Escape, P, R
 2. **Mouse**: Click and drag for direct bar control
 3. **Touch**: Swipe gestures and touch controls
 4. **Gamepad**: Analog stick and button support

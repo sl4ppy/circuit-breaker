@@ -24,13 +24,19 @@ async function initGame(): Promise<void> {
     }
 
     // Initialize scaling manager with game's base dimensions
+    // Detect if we're on a mobile device for better scaling
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                     window.innerWidth <= 768;
+    
     scalingManager = ScalingManager.getInstance({
       baseWidth: 360,  // Game's base width (9:16 aspect ratio)
       baseHeight: 640, // Game's base height
-      minScale: 1,     // Minimum scale factor
+      minScale: isMobile ? 0.5 : 1,     // Allow smaller scaling on mobile for better fit
       maxScale: 8,     // Maximum scale factor (for very large displays)
-      forceIntegerScaling: true // Keep fonts crisp with integer scaling
+      forceIntegerScaling: !isMobile, // Allow fractional scaling on mobile for better screen utilization
     });
+    
+    logger.debug(`📱 Device: ${isMobile ? 'Mobile' : 'Desktop'}, Scaling config: minScale=${isMobile ? 0.5 : 1}, forceInteger=${!isMobile}`, null, 'Main');
 
     // Clear loading message and create canvas
     gameContainer.innerHTML = '';

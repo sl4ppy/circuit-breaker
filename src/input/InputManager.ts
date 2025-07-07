@@ -1,5 +1,6 @@
 import { logger } from '../utils/Logger';
 import { ScalingManager } from '../utils/ScalingManager';
+import { TiltingBar } from '../core/TiltingBar';
 
 export interface InputState {
   keys: { [key: string]: boolean };
@@ -10,6 +11,7 @@ export interface InputState {
     button: number;
   };
   tiltInput: number; // -1 to 1 for bar tilt
+  touches: Map<number, { x: number; y: number }>; // Track multiple touches by identifier
 }
 
 export class InputManager {
@@ -19,18 +21,20 @@ export class InputManager {
       x: 0,
       y: 0,
       isDown: false,
-      button: -1,
+      button: 0,
     },
     tiltInput: 0,
+    touches: new Map(), // Initialize touch tracking
   };
 
   private previousKeys: { [key: string]: boolean } = {};
   private canvas: HTMLCanvasElement | null = null;
+  private tiltingBar: TiltingBar | null = null;
   private keyBindings = {
     leftSideUp: ['KeyA'],
     leftSideDown: ['KeyZ'],
-    rightSideUp: ['ArrowUp'],
-    rightSideDown: ['ArrowDown'],
+    rightSideUp: ['ArrowUp', 'KeyL'],
+    rightSideDown: ['ArrowDown', 'Comma'],
     start: ['Space'],
     reset: ['KeyR'],
     pause: ['KeyP', 'Escape'],
@@ -41,10 +45,11 @@ export class InputManager {
   }
 
   /**
-   * Initialize input manager with canvas reference
+   * Initialize input manager with canvas reference and tilting bar
    */
-  public init(canvas: HTMLCanvasElement): void {
+  public init(canvas: HTMLCanvasElement, tiltingBar: TiltingBar): void {
     this.canvas = canvas;
+    this.tiltingBar = tiltingBar;
     this.setupCanvasListeners();
   }
 
@@ -67,12 +72,21 @@ export class InputManager {
    */
   public getLeftSideInput(): number {
     let leftSideInput = 0;
+    
+    // Check discrete keyboard inputs first
     if (this.isActionPressed('leftSideUp')) {
       leftSideInput = 1;
     }
     if (this.isActionPressed('leftSideDown')) {
       leftSideInput = -1;
     }
+    
+    // If no keyboard input, use touch control logic (supports multi-touch)
+    if (this.canvas && leftSideInput === 0 && this.tiltingBar) {
+      const touchInput = this.calculateTouchSideInput('left');
+      leftSideInput = touchInput;
+    }
+    
     return leftSideInput;
   }
 
@@ -81,12 +95,21 @@ export class InputManager {
    */
   public getRightSideInput(): number {
     let rightSideInput = 0;
+    
+    // Check discrete keyboard inputs first
     if (this.isActionPressed('rightSideUp')) {
       rightSideInput = 1;
     }
     if (this.isActionPressed('rightSideDown')) {
       rightSideInput = -1;
     }
+    
+    // If no keyboard input, use touch control logic (supports multi-touch)
+    if (this.canvas && rightSideInput === 0 && this.tiltingBar) {
+      const touchInput = this.calculateTouchSideInput('right');
+      rightSideInput = touchInput;
+    }
+    
     return rightSideInput;
   }
 
@@ -118,6 +141,183 @@ export class InputManager {
    */
   public isKeyJustPressed(keyCode: string): boolean {
     return this.inputState.keys[keyCode] && !this.previousKeys[keyCode];
+  }
+
+  /**
+   * Calculate touch input for left or right side based on touch position relative to bar
+   * Now supports multi-touch - checks all active touches for the specified side
+   */
+  private calculateTouchSideInput(side: 'left' | 'right'): number {
+    if (!this.canvas || !this.tiltingBar) return 0;
+
+    let strongestInput = 0;
+
+    // Check all active touches (multi-touch support)
+    for (const [_touchId, touchPos] of this.inputState.touches) {
+      try {
+        // Get touch position in game coordinates
+        const scalingManager = ScalingManager.getInstance();
+        const gamePos = scalingManager.screenToGame(touchPos.x, touchPos.y);
+        
+        // Get screen/game dimensions
+        const gameWidth = 360; // Game's base width
+        const centerX = gameWidth / 2;
+        
+        // Determine if touch is on the correct side of screen
+        const touchIsOnLeftSide = gamePos.x < centerX;
+        const touchIsOnRightSide = gamePos.x >= centerX;
+        
+        // Only process touch if it's on the correct side
+        if ((side === 'left' && !touchIsOnLeftSide) || (side === 'right' && !touchIsOnRightSide)) {
+          continue;
+        }
+        
+        // Get bar endpoints to find the Y position of the requested side
+        const barEndpoints = this.tiltingBar.getEndpoints();
+        const barYPosition = side === 'left' ? barEndpoints.start.y : barEndpoints.end.y;
+        
+        // Calculate difference between touch Y and bar Y
+        const touchYDiff = gamePos.y - barYPosition;
+        
+        // Convert Y difference to input value
+        // Negative Y diff (touch above bar) = positive input (move up)
+        // Positive Y diff (touch below bar) = negative input (move down)
+        const maxInputDistance = 100; // Maximum distance for full input
+        let inputValue = -touchYDiff / maxInputDistance; // Negative to flip direction
+        
+        // Clamp to [-1, 1] range
+        inputValue = Math.max(-1, Math.min(1, inputValue));
+        
+        // Apply dead zone to prevent jitter when touching very close to bar
+        const deadZone = 0.1;
+        if (Math.abs(inputValue) < deadZone) {
+          inputValue = 0;
+        }
+        
+        // Use the strongest input from all touches on this side
+        if (Math.abs(inputValue) > Math.abs(strongestInput)) {
+          strongestInput = inputValue;
+        }
+        
+      } catch (error) {
+        // Fallback method if ScalingManager fails
+        const rect = this.canvas.getBoundingClientRect();
+        const canvasX = touchPos.x - rect.left;
+        const canvasY = touchPos.y - rect.top;
+        
+        // Simple approximation using canvas coordinates
+        const centerX = rect.width / 2;
+        const touchIsOnLeftSide = canvasX < centerX;
+        const touchIsOnRightSide = canvasX >= centerX;
+        
+        if ((side === 'left' && !touchIsOnLeftSide) || (side === 'right' && !touchIsOnRightSide)) {
+          continue;
+        }
+        
+        // Estimate bar position (roughly at 90% down from top)
+        const estimatedBarY = rect.height * 0.9;
+        const touchYDiff = canvasY - estimatedBarY;
+        const maxInputDistance = rect.height * 0.2; // 20% of canvas height
+        
+        let inputValue = -touchYDiff / maxInputDistance;
+        inputValue = Math.max(-1, Math.min(1, inputValue));
+        
+        const deadZone = 0.1;
+        if (Math.abs(inputValue) < deadZone) {
+          inputValue = 0;
+        }
+        
+        // Use the strongest input from all touches on this side
+        if (Math.abs(inputValue) > Math.abs(strongestInput)) {
+          strongestInput = inputValue;
+        }
+      }
+    }
+    
+    // If no multi-touch input found, fallback to mouse/single touch
+    if (strongestInput === 0 && this.inputState.mouse.isDown) {
+      return this.calculateSingleTouchSideInput(side);
+    }
+
+    return strongestInput;
+  }
+
+  /**
+   * Calculate touch input for single touch (fallback method)
+   */
+  private calculateSingleTouchSideInput(side: 'left' | 'right'): number {
+    if (!this.canvas || !this.tiltingBar) return 0;
+
+    try {
+      // Get touch position in game coordinates
+      const scalingManager = ScalingManager.getInstance();
+      const gamePos = scalingManager.screenToGame(this.inputState.mouse.x, this.inputState.mouse.y);
+      
+      // Get screen/game dimensions
+      const gameWidth = 360; // Game's base width
+      const centerX = gameWidth / 2;
+      
+      // Determine if touch is on the correct side of screen
+      const touchIsOnLeftSide = gamePos.x < centerX;
+      const touchIsOnRightSide = gamePos.x >= centerX;
+      
+      // Only process touch if it's on the correct side
+      if ((side === 'left' && !touchIsOnLeftSide) || (side === 'right' && !touchIsOnRightSide)) {
+        return 0;
+      }
+      
+      // Get bar endpoints to find the Y position of the requested side
+      const barEndpoints = this.tiltingBar.getEndpoints();
+      const barYPosition = side === 'left' ? barEndpoints.start.y : barEndpoints.end.y;
+      
+      // Calculate difference between touch Y and bar Y
+      const touchYDiff = gamePos.y - barYPosition;
+      
+      // Convert Y difference to input value
+      const maxInputDistance = 100; // Maximum distance for full input
+      let inputValue = -touchYDiff / maxInputDistance; // Negative to flip direction
+      
+      // Clamp to [-1, 1] range
+      inputValue = Math.max(-1, Math.min(1, inputValue));
+      
+      // Apply dead zone
+      const deadZone = 0.1;
+      if (Math.abs(inputValue) < deadZone) {
+        inputValue = 0;
+      }
+      
+      return inputValue;
+      
+    } catch (error) {
+      // Fallback method if ScalingManager fails
+      const rect = this.canvas.getBoundingClientRect();
+      const canvasX = this.inputState.mouse.x - rect.left;
+      const canvasY = this.inputState.mouse.y - rect.top;
+      
+      // Simple approximation using canvas coordinates
+      const centerX = rect.width / 2;
+      const touchIsOnLeftSide = canvasX < centerX;
+      const touchIsOnRightSide = canvasX >= centerX;
+      
+      if ((side === 'left' && !touchIsOnLeftSide) || (side === 'right' && !touchIsOnRightSide)) {
+        return 0;
+      }
+      
+      // Estimate bar position (roughly at 90% down from top)
+      const estimatedBarY = rect.height * 0.9;
+      const touchYDiff = canvasY - estimatedBarY;
+      const maxInputDistance = rect.height * 0.2; // 20% of canvas height
+      
+      let inputValue = -touchYDiff / maxInputDistance;
+      inputValue = Math.max(-1, Math.min(1, inputValue));
+      
+      const deadZone = 0.1;
+      if (Math.abs(inputValue) < deadZone) {
+        inputValue = 0;
+      }
+      
+      return inputValue;
+    }
   }
 
   /**
@@ -196,26 +396,9 @@ export class InputManager {
     // Positive tilt = right side higher than left side
     const tiltInput = (rightSideInput - leftSideInput) * 0.5;
 
-    // Add mouse tilt control if mouse is being used
-    if (this.canvas && this.inputState.mouse.isDown) {
-      try {
-        const scalingManager = ScalingManager.getInstance();
-        const gamePos = scalingManager.screenToGame(this.inputState.mouse.x, this.inputState.mouse.y);
-        const gameWidth = 360; // Game's base width
-        const centerX = gameWidth / 2;
-        const mouseTilt = (gamePos.x - centerX) / centerX;
-        this.inputState.tiltInput = Math.max(-1, Math.min(1, mouseTilt));
-      } catch (error) {
-        // Fallback to old method if ScalingManager not initialized
-        const rect = this.canvas.getBoundingClientRect();
-        const centerX = rect.width / 2;
-        const mouseX = this.inputState.mouse.x - rect.left;
-        const mouseTilt = (mouseX - centerX) / centerX;
-        this.inputState.tiltInput = Math.max(-1, Math.min(1, mouseTilt));
-      }
-    } else {
-      this.inputState.tiltInput = Math.max(-1, Math.min(1, tiltInput));
-    }
+    // Keep the old tilt calculation for backwards compatibility (if needed)
+    // New touch system uses position-based controls instead
+    this.inputState.tiltInput = Math.max(-1, Math.min(1, tiltInput));
   }
 
   /**
@@ -260,13 +443,22 @@ export class InputManager {
       this.handleMouseLeave.bind(this),
     );
 
-    // Touch events for mobile support
+    // Touch events for mobile support with passive options for better performance
     this.canvas.addEventListener(
       'touchstart',
       this.handleTouchStart.bind(this),
+      { passive: false }, // Need to prevent default for touch control
     );
-    this.canvas.addEventListener('touchend', this.handleTouchEnd.bind(this));
-    this.canvas.addEventListener('touchmove', this.handleTouchMove.bind(this));
+    this.canvas.addEventListener(
+      'touchend', 
+      this.handleTouchEnd.bind(this),
+      { passive: false },
+    );
+    this.canvas.addEventListener(
+      'touchmove', 
+      this.handleTouchMove.bind(this),
+      { passive: false },
+    );
   }
 
   /**
@@ -316,31 +508,101 @@ export class InputManager {
   }
 
   /**
-   * Handle touch start events
+   * Handle touch start events (supports multi-touch)
    */
   private handleTouchStart(event: TouchEvent): void {
     event.preventDefault();
+    
+    // Track all new touches
+    for (let i = 0; i < event.touches.length; i++) {
+      const touch = event.touches[i];
+      this.inputState.touches.set(touch.identifier, {
+        x: touch.clientX,
+        y: touch.clientY,
+      });
+    }
+    
+    // Maintain backwards compatibility with mouse state
     if (event.touches.length > 0) {
       this.inputState.mouse.isDown = true;
       this.updateTouchPosition(event.touches[0]);
+      
+      // Only log touch start in debug builds
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('🤏 Touch start detected', { 
+          touchCount: event.touches.length,
+          activeTouches: this.inputState.touches.size,
+          leftInput: this.getLeftSideInput(),
+          rightInput: this.getRightSideInput(),
+        }, 'InputManager');
+      }
     }
   }
 
   /**
-   * Handle touch end events
+   * Handle touch end events (supports multi-touch)
    */
   private handleTouchEnd(event: TouchEvent): void {
     event.preventDefault();
-    this.inputState.mouse.isDown = false;
+    
+    // Remove ended touches by finding which touches are no longer in the touches array
+    const activeTouchIds = new Set(Array.from(event.touches).map(t => t.identifier));
+    
+    // Remove touches that are no longer active
+    for (const [touchId] of this.inputState.touches) {
+      if (!activeTouchIds.has(touchId)) {
+        this.inputState.touches.delete(touchId);
+      }
+    }
+    
+    // Update mouse state based on remaining touches
+    if (event.touches.length === 0) {
+      this.inputState.mouse.isDown = false;
+    } else {
+      // Update mouse position to first remaining touch
+      this.updateTouchPosition(event.touches[0]);
+    }
+    
+    // Only log touch end in debug builds
+    if (process.env.NODE_ENV === 'development') {
+      logger.debug('🤏 Touch end detected', {
+        remainingTouches: this.inputState.touches.size,
+      }, 'InputManager');
+    }
   }
 
   /**
-   * Handle touch move events
+   * Handle touch move events (supports multi-touch)
    */
   private handleTouchMove(event: TouchEvent): void {
     event.preventDefault();
+    
+    // Update all active touches
+    for (let i = 0; i < event.touches.length; i++) {
+      const touch = event.touches[i];
+      this.inputState.touches.set(touch.identifier, {
+        x: touch.clientX,
+        y: touch.clientY,
+      });
+    }
+    
+    // Maintain backwards compatibility with mouse position
     if (event.touches.length > 0) {
       this.updateTouchPosition(event.touches[0]);
+      
+      // Only log when there's actual input and in debug builds
+      if (process.env.NODE_ENV === 'development') {
+        const leftInput = this.getLeftSideInput();
+        const rightInput = this.getRightSideInput();
+        if ((leftInput !== 0 || rightInput !== 0) && Math.random() < 0.01) { // 1% chance when active
+          logger.debug('🤏 Touch move active', { 
+            touchCount: event.touches.length,
+            activeTouches: this.inputState.touches.size,
+            leftInput: leftInput.toFixed(2),
+            rightInput: rightInput.toFixed(2),
+          }, 'InputManager');
+        }
+      }
     }
   }
 
@@ -384,14 +646,17 @@ export class InputManager {
       this.canvas.removeEventListener(
         'touchstart',
         this.handleTouchStart.bind(this),
+        { passive: false } as any,
       );
       this.canvas.removeEventListener(
         'touchend',
         this.handleTouchEnd.bind(this),
+        { passive: false } as any,
       );
       this.canvas.removeEventListener(
         'touchmove',
         this.handleTouchMove.bind(this),
+        { passive: false } as any,
       );
     }
   }

@@ -39,35 +39,37 @@ export class PointFlyOffManager {
 
     // Create appropriate fly-off based on type
     switch (event.type) {
-      case PointType.GOAL_HIT:
-        flyOff = PointFlyOffFactory.createGoalHit(event.points, event.position);
-        break;
+    case PointType.GOAL_HIT:
+      flyOff = PointFlyOffFactory.createGoalHit(event.points, event.position);
+      break;
 
-      case PointType.POWERUP_COLLECT:
-        const powerUpColor = event.metadata?.color || '#ff6600';
-        flyOff = PointFlyOffFactory.createPowerUpCollect(event.points, event.position, powerUpColor);
-        break;
+    case PointType.POWERUP_COLLECT: {
+      const powerUpColor = event.metadata?.color || '#ff6600';
+      flyOff = PointFlyOffFactory.createPowerUpCollect(event.points, event.position, powerUpColor);
+      break;
+    }
 
-      case PointType.LEVEL_COMPLETE:
-        flyOff = PointFlyOffFactory.createLevelComplete(event.points, event.position);
-        break;
+    case PointType.LEVEL_COMPLETE:
+      flyOff = PointFlyOffFactory.createLevelComplete(event.points, event.position);
+      break;
 
-      case PointType.BONUS:
-        flyOff = PointFlyOffFactory.createBonus(event.points, event.position);
-        break;
+    case PointType.BONUS:
+      flyOff = PointFlyOffFactory.createBonus(event.points, event.position);
+      break;
 
-      case PointType.ACHIEVEMENT:
-        flyOff = PointFlyOffFactory.createAchievement(event.points, event.position);
-        break;
+    case PointType.ACHIEVEMENT:
+      flyOff = PointFlyOffFactory.createAchievement(event.points, event.position);
+      break;
 
-      case PointType.COMBO:
-        const multiplier = event.metadata?.multiplier || 1;
-        flyOff = PointFlyOffFactory.createCombo(event.points, event.position, multiplier);
-        break;
+    case PointType.COMBO: {
+      const multiplier = event.metadata?.multiplier || 1;
+      flyOff = PointFlyOffFactory.createCombo(event.points, event.position, multiplier);
+      break;
+    }
 
-      default:
-        logger.warn(`❌ Unknown point fly-off type: ${event.type}`, null, 'PointFlyOffManager');
-        return null;
+    default:
+      logger.warn(`❌ Unknown point fly-off type: ${event.type}`, null, 'PointFlyOffManager');
+      return null;
     }
 
     const id = flyOff.getId();
@@ -119,7 +121,7 @@ export class PointFlyOffManager {
 
     // Sort by creation time to maintain consistent layering
     const sortedFlyOffs = Array.from(this.activeFlyOffs.values()).sort((a, b) => 
-      parseInt(a.getId().split('-')[1]) - parseInt(b.getId().split('-')[1])
+      parseInt(a.getId().split('-')[1]) - parseInt(b.getId().split('-')[1]),
     );
 
     for (const flyOff of sortedFlyOffs) {
@@ -134,7 +136,7 @@ export class PointFlyOffManager {
     return this.createFlyOff({
       type: PointType.GOAL_HIT,
       points,
-      position: { ...ballPosition }
+      position: { ...ballPosition },
     });
   }
 
@@ -146,7 +148,7 @@ export class PointFlyOffManager {
       type: PointType.POWERUP_COLLECT,
       points,
       position: { ...position },
-      metadata: { color: powerUpColor }
+      metadata: { color: powerUpColor },
     });
   }
 
@@ -157,7 +159,7 @@ export class PointFlyOffManager {
     return this.createFlyOff({
       type: PointType.LEVEL_COMPLETE,
       points,
-      position: { ...centerPosition }
+      position: { ...centerPosition },
     });
   }
 
@@ -168,7 +170,7 @@ export class PointFlyOffManager {
     return this.createFlyOff({
       type: PointType.BONUS,
       points,
-      position: { ...position }
+      position: { ...position },
     });
   }
 
@@ -179,7 +181,7 @@ export class PointFlyOffManager {
     return this.createFlyOff({
       type: PointType.ACHIEVEMENT,
       points,
-      position: { ...position }
+      position: { ...position },
     });
   }
 
@@ -191,7 +193,7 @@ export class PointFlyOffManager {
       type: PointType.COMBO,
       points,
       position: { ...position },
-      metadata: { multiplier }
+      metadata: { multiplier },
     });
   }
 
@@ -255,11 +257,11 @@ export class PointFlyOffManager {
     activeFlyOffs: number;
     averageFrameTime: number;
     totalPointsDisplayed: number;
-  } {
+    } {
     return {
       activeFlyOffs: this.activeFlyOffs.size,
       averageFrameTime: this.averageFrameTime,
-      totalPointsDisplayed: this.totalPointsDisplayed
+      totalPointsDisplayed: this.totalPointsDisplayed,
     };
   }
 

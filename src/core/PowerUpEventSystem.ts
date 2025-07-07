@@ -241,7 +241,7 @@ export class PowerUpEventSystem {
    */
   public getEventsByTimeRange(startTime: number, endTime: number): PowerUpEventData[] {
     return this.eventHistory.filter(
-      event => event.timestamp >= startTime && event.timestamp <= endTime
+      event => event.timestamp >= startTime && event.timestamp <= endTime,
     );
   }
 
@@ -261,9 +261,9 @@ export class PowerUpEventSystem {
     activationsByType: Record<string, number>;
     averageActivationTime: number;
     mostUsedPowerUp: PowerUpType | null;
-  } {
+    } {
     const activations = this.eventHistory.filter(event => 
-      event.type && event.timestamp
+      event.type && event.timestamp,
     );
 
     const activationsByType: Record<string, number> = {};
@@ -297,7 +297,7 @@ export class PowerUpEventSystem {
   public getRegisteredCallbacks(): {
     typeSpecific: Map<PowerUpType, PowerUpEventCallbacks>;
     global: PowerUpEventCallbacks;
-  } {
+    } {
     return {
       typeSpecific: new Map(this.eventCallbacks),
       global: { ...this.globalCallbacks },

@@ -83,18 +83,18 @@ export class AchievementNotification {
 
     // Calculate animation progress and position
     switch (this.animationPhase) {
-      case 'slideIn':
-        progress = Math.min(elapsed / this.slideInDuration, 1);
-        yOffset = (1 - progress) * 100; // Slide down from above
-        break;
-      case 'show':
-        progress = 1;
-        yOffset = 0;
-        break;
-      case 'slideOut':
-        progress = Math.min(elapsed / this.slideOutDuration, 1);
-        yOffset = progress * 100; // Slide up and out
-        break;
+    case 'slideIn':
+      progress = Math.min(elapsed / this.slideInDuration, 1);
+      yOffset = (1 - progress) * 100; // Slide down from above
+      break;
+    case 'show':
+      progress = 1;
+      yOffset = 0;
+      break;
+    case 'slideOut':
+      progress = Math.min(elapsed / this.slideOutDuration, 1);
+      yOffset = progress * 100; // Slide up and out
+      break;
     }
 
     // Apply easing
@@ -119,7 +119,7 @@ export class AchievementNotification {
       common: '#cccccc',
       rare: '#4a90e2',
       epic: '#9b59b6',
-      legendary: '#f39c12'
+      legendary: '#f39c12',
     };
     
     ctx.strokeStyle = rarityColors[this.achievement.rarity] || '#cccccc';
@@ -173,7 +173,7 @@ export class AchievementNotification {
       ctx.fillText(
         `${this.achievement.progress}/${this.achievement.maxProgress}`,
         progressBarX + progressBarWidth / 2,
-        progressBarY - 5
+        progressBarY - 5,
       );
     }
 

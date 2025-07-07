@@ -396,7 +396,7 @@ export class AchievementManager {
     percentage: number;
     byCategory: Record<string, { total: number; unlocked: number }>;
     byRarity: Record<string, { total: number; unlocked: number }>;
-  } {
+    } {
     const achievements = Array.from(this.achievements.values());
     const unlocked = achievements.filter(a => a.unlocked);
     

@@ -131,41 +131,41 @@ export class SaveLoadMenu {
     if (!this.isVisible) return false;
 
     switch (key) {
-      case 'Escape':
-        if (this.isConfirmingDelete) {
-          this.cancelDelete();
-        } else {
-          this.config.onClose();
-        }
-        return true;
+    case 'Escape':
+      if (this.isConfirmingDelete) {
+        this.cancelDelete();
+      } else {
+        this.config.onClose();
+      }
+      return true;
 
-      case 'Enter':
-        if (this.isConfirmingDelete) {
-          this.confirmDelete();
-        } else {
-          this.loadSelectedSlot();
-        }
-        return true;
+    case 'Enter':
+      if (this.isConfirmingDelete) {
+        this.confirmDelete();
+      } else {
+        this.loadSelectedSlot();
+      }
+      return true;
 
-      case 'KeyN':
-        if (!this.isConfirmingDelete) {
-          this.newGameInSelectedSlot();
-        }
-        return true;
+    case 'KeyN':
+      if (!this.isConfirmingDelete) {
+        this.newGameInSelectedSlot();
+      }
+      return true;
 
-      case 'KeyD':
-        if (!this.isConfirmingDelete) {
-          this.deleteSelectedSlot();
-        }
-        return true;
+    case 'KeyD':
+      if (!this.isConfirmingDelete) {
+        this.deleteSelectedSlot();
+      }
+      return true;
 
-      case 'ArrowUp':
-        this.selectedSlot = Math.max(0, this.selectedSlot - 1);
-        return true;
+    case 'ArrowUp':
+      this.selectedSlot = Math.max(0, this.selectedSlot - 1);
+      return true;
 
-      case 'ArrowDown':
-        this.selectedSlot = Math.min(2, this.selectedSlot + 1);
-        return true;
+    case 'ArrowDown':
+      this.selectedSlot = Math.min(2, this.selectedSlot + 1);
+      return true;
     }
 
     return false;
@@ -526,7 +526,7 @@ export class SaveLoadMenu {
 
     // Message border
     const borderColor = this.messageType === 'error' ? '#e74c3c' : 
-                       this.messageType === 'success' ? '#50c878' : '#4a90e2';
+      this.messageType === 'success' ? '#50c878' : '#4a90e2';
     ctx.strokeStyle = borderColor;
     ctx.lineWidth = 2;
     ctx.strokeRect(60, 400, 240, 40);

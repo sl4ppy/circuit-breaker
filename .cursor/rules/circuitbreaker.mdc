@@ -26,3 +26,4 @@ alwaysApply: true
 - Regularly update dependencies with npm outdated and npm update.
 - Scan for security issues using npm audit and address them.
 - Back up the project folder regularly using GitHub and optional local or cloud backups.
+- Never introduce linter errors while generating code.

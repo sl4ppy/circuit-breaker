@@ -46,7 +46,7 @@ export class PowerUpDebugger {
     powerUpManager: PowerUpManager,
     powerUpEffects: PowerUpEffects,
     eventSystem: PowerUpEventSystem,
-    config: Partial<DebugConfig> = {}
+    config: Partial<DebugConfig> = {},
   ) {
     this.powerUpManager = powerUpManager;
     this.powerUpEffects = powerUpEffects;
@@ -120,37 +120,38 @@ export class PowerUpDebugger {
     this.consoleCommands.set('powerup.debug', (args) => {
       const command = args[0];
       switch (command) {
-        case 'show':
-          this.show();
-          break;
-        case 'hide':
-          this.hide();
-          break;
-        case 'toggle':
-          this.toggle();
-          break;
-        case 'clear':
-          this.clearHistory();
-          break;
-        default:
-          console.log('Usage: powerup.debug [show|hide|toggle|clear]');
+      case 'show':
+        this.show();
+        break;
+      case 'hide':
+        this.hide();
+        break;
+      case 'toggle':
+        this.toggle();
+        break;
+      case 'clear':
+        this.clearHistory();
+        break;
+      default:
+        console.log('Usage: powerup.debug [show|hide|toggle|clear]');
       }
     });
 
     this.consoleCommands.set('powerup.cache', (args) => {
       const command = args[0];
       switch (command) {
-        case 'stats':
-          const stats = this.powerUpEffects.getCacheStats();
-          console.log('📈 Cache Statistics:', stats);
-          break;
-        case 'clear':
-          this.powerUpEffects.clearVisualCache();
-          this.powerUpEffects.clearPathCache();
-          console.log('✓ Cache cleared');
-          break;
-        default:
-          console.log('Usage: powerup.cache [stats|clear]');
+      case 'stats': {
+        const stats = this.powerUpEffects.getCacheStats();
+        console.log('📈 Cache Statistics:', stats);
+        break;
+      }
+      case 'clear':
+        this.powerUpEffects.clearVisualCache();
+        this.powerUpEffects.clearPathCache();
+        console.log('✓ Cache cleared');
+        break;
+      default:
+        console.log('Usage: powerup.cache [stats|clear]');
       }
     });
 
@@ -341,7 +342,7 @@ export class PowerUpDebugger {
         ctx.fillText(
           `${type}: ${state.charges}/${state.maxCharges} (${(timeRemaining / 1000).toFixed(1)}s)`,
           25,
-          yOffset
+          yOffset,
         );
         yOffset += 15;
       });
@@ -405,7 +406,7 @@ export class PowerUpDebugger {
           ctx.fillText(
             `${event.type} (${(age / 1000).toFixed(1)}s ago)`,
             25,
-            yOffset
+            yOffset,
           );
           yOffset += 15;
         });
@@ -491,7 +492,7 @@ export class PowerUpDebugger {
     eventHistory: any;
     cacheStats: any;
     validationErrors: string[];
-  } {
+    } {
     return {
       config: this.getConfig(),
       metrics: this.getPerformanceMetrics(),

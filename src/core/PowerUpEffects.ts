@@ -63,32 +63,32 @@ export class PowerUpEffects {
     };
 
     switch (type) {
-      case PowerUpType.SLOW_MO_SURGE:
-        physicsEffect.timeScale = config.physics.timeScale;
-        // Apply time scale to physics engine
-        if (context.physicsEngine.setTimeScale) {
-          context.physicsEngine.setTimeScale(config.physics.timeScale || 1.0);
-        }
-        break;
+    case PowerUpType.SLOW_MO_SURGE:
+      physicsEffect.timeScale = config.physics.timeScale;
+      // Apply time scale to physics engine
+      if (context.physicsEngine.setTimeScale) {
+        context.physicsEngine.setTimeScale(config.physics.timeScale || 1.0);
+      }
+      break;
 
-      case PowerUpType.MAGNETIC_GUIDE:
-        physicsEffect.magneticForce = config.physics.magneticForce;
-        // Physics effects for magnetic guide are applied in update loop
-        break;
+    case PowerUpType.MAGNETIC_GUIDE:
+      physicsEffect.magneticForce = config.physics.magneticForce;
+      // Physics effects for magnetic guide are applied in update loop
+      break;
 
-      case PowerUpType.OVERCLOCK_BOOST:
-        physicsEffect.barSpeedMultiplier = config.physics.barSpeedMultiplier;
-        // Apply speed multiplier to tilting bar
-        context.tiltingBar.setSpeedMultiplier(config.physics.barSpeedMultiplier || 1.0);
-        break;
+    case PowerUpType.OVERCLOCK_BOOST:
+      physicsEffect.barSpeedMultiplier = config.physics.barSpeedMultiplier;
+      // Apply speed multiplier to tilting bar
+      context.tiltingBar.setSpeedMultiplier(config.physics.barSpeedMultiplier || 1.0);
+      break;
 
-      case PowerUpType.CIRCUIT_PATCH:
-        // Shield is handled as a special case - no physics effects
-        break;
+    case PowerUpType.CIRCUIT_PATCH:
+      // Shield is handled as a special case - no physics effects
+      break;
 
-      case PowerUpType.SCAN_REVEAL:
-        // Scan reveal is purely visual - no physics effects
-        break;
+    case PowerUpType.SCAN_REVEAL:
+      // Scan reveal is purely visual - no physics effects
+      break;
     }
 
     this.activePhysicsEffects.set(type, physicsEffect);
@@ -103,26 +103,26 @@ export class PowerUpEffects {
     if (!effect) return;
 
     switch (type) {
-      case PowerUpType.SLOW_MO_SURGE:
-        // Reset time scale
-        if (context.physicsEngine.setTimeScale) {
-          context.physicsEngine.setTimeScale(1.0);
-        }
-        break;
+    case PowerUpType.SLOW_MO_SURGE:
+      // Reset time scale
+      if (context.physicsEngine.setTimeScale) {
+        context.physicsEngine.setTimeScale(1.0);
+      }
+      break;
 
-      case PowerUpType.OVERCLOCK_BOOST:
-        // Reset bar speed multiplier
-        context.tiltingBar.setSpeedMultiplier(1.0);
-        break;
+    case PowerUpType.OVERCLOCK_BOOST:
+      // Reset bar speed multiplier
+      context.tiltingBar.setSpeedMultiplier(1.0);
+      break;
 
-      case PowerUpType.MAGNETIC_GUIDE:
-        // Magnetic effects are removed automatically
-        break;
+    case PowerUpType.MAGNETIC_GUIDE:
+      // Magnetic effects are removed automatically
+      break;
 
-      case PowerUpType.CIRCUIT_PATCH:
-      case PowerUpType.SCAN_REVEAL:
-        // No physics effects to remove
-        break;
+    case PowerUpType.CIRCUIT_PATCH:
+    case PowerUpType.SCAN_REVEAL:
+      // No physics effects to remove
+      break;
     }
 
     this.activePhysicsEffects.delete(type);
@@ -151,7 +151,7 @@ export class PowerUpEffects {
 
     const distance = Math.sqrt(
       Math.pow(ball.position.x - context.targetPosition.x, 2) + 
-      Math.pow(ball.position.y - context.targetPosition.y, 2)
+      Math.pow(ball.position.y - context.targetPosition.y, 2),
     );
     
     // Only apply force when close to target
@@ -170,7 +170,7 @@ export class PowerUpEffects {
    */
   public getVisualEffects(
     activePowerUps: Map<PowerUpType, PowerUpState>,
-    context: EffectContext
+    context: EffectContext,
   ): VisualEffect[] {
     const effects: VisualEffect[] = [];
     const currentTime = Date.now();
@@ -208,7 +208,7 @@ export class PowerUpEffects {
   private generateVisualEffects(
     type: PowerUpType,
     state: PowerUpState,
-    context: EffectContext
+    context: EffectContext,
   ): VisualEffect[] {
     const config = getPowerUpConfig(type);
     const effects: VisualEffect[] = [];
@@ -285,7 +285,7 @@ export class PowerUpEffects {
     const path = this.calculateOptimalPath(
       ball.position,
       context.targetPosition,
-      context.physicsEngine.getObjects()
+      context.physicsEngine.getObjects(),
     );
 
     // Cache the path
@@ -305,7 +305,7 @@ export class PowerUpEffects {
   private calculateOptimalPath(
     ballPosition: { x: number; y: number },
     targetPosition: { x: number; y: number },
-    obstacles: any[]
+    obstacles: any[],
   ): { x: number; y: number }[] {
     const path: { x: number; y: number }[] = [];
     
@@ -347,7 +347,7 @@ export class PowerUpEffects {
   private isPointNearObstacle(x: number, y: number, obstacle: any): boolean {
     const distance = Math.sqrt(
       Math.pow(x - obstacle.position.x, 2) + 
-      Math.pow(y - obstacle.position.y, 2)
+      Math.pow(y - obstacle.position.y, 2),
     );
     return distance < (obstacle.radius || 20) + 10;
   }
@@ -367,7 +367,7 @@ export class PowerUpEffects {
    */
   public shouldUseShield(
     ballPosition: { x: number; y: number },
-    bounds: { width: number; height: number }
+    bounds: { width: number; height: number },
   ): boolean {
     // Check if ball is about to fall off the bottom
     return ballPosition.y > bounds.height + 50;
@@ -404,7 +404,7 @@ export class PowerUpEffects {
     visualCacheSize: number;
     pathCacheSize: number;
     lastUpdates: Map<PowerUpType, number>;
-  } {
+    } {
     return {
       visualCacheSize: this.visualEffectCache.size,
       pathCacheSize: this.pathCache.size,

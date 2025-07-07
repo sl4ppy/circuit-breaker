@@ -31,9 +31,9 @@ export interface Hole {
     isAnimated: boolean;
     phase: 'animating_in' | 'idle' | 'animating_out' | 'hidden';
     startTime: number;
-    animatingInDuration: number; // 1 second
+    animatingInDuration: number; // 0.5 seconds with easeOutBack (bouncy entrance)
     idleDuration: number; // 3-10 seconds
-    animatingOutDuration: number; // 1 second
+    animatingOutDuration: number; // 0.5 seconds with easeInBack (smooth acceleration out)
     hiddenDuration: number; // Invisible/inactive duration
     currentScale: number; // 0.0 to 1.0 scale multiplier
   };
@@ -59,9 +59,11 @@ export class Level {
   private isCompleted: boolean = false;
   private elapsedTime: number = 0;
   private completedGoals: Set<string> = new Set(); // Track completed goal holes
+  private onSoundEffect?: (soundName: string) => void;
 
-  constructor(levelData: LevelData) {
+  constructor(levelData: LevelData, onSoundEffect?: (soundName: string) => void) {
     this.levelData = levelData;
+    this.onSoundEffect = onSoundEffect;
     logger.info(
       `📋 Level ${levelData.id} loaded: ${levelData.name} (${levelData.goalHoles.length} goals)`,
       null,
@@ -288,7 +290,7 @@ export class Level {
     const kickAngle = Math.PI * 0.75 + (Math.random() - 0.5) * 0.5; // 135° ± 15°
     const kickDirection = {
       x: Math.cos(kickAngle),
-      y: Math.sin(kickAngle)
+      y: Math.sin(kickAngle),
     };
 
     hole.saucerState = {
@@ -297,10 +299,10 @@ export class Level {
       startTime: currentTime,
       phase: 'sinking', // Natural sinking phase
       sinkDuration: 600, // 0.6 seconds for aggressive sinking
-      waitDuration: 2000 + Math.random() * 2000, // 2-4 seconds to wait
+      waitDuration: 1000 + Math.random() * 4000, // 1-5 seconds to wait
       kickDirection: kickDirection,
       kickForce: 200 + Math.random() * 150, // Lighter kick force (200-350)
-      sinkDepth: 0 // Start at surface, sink gradually
+      sinkDepth: 0, // Start at surface, sink gradually
     };
 
     logger.info(`🛸 Started saucer behavior for hole: ${holeId} - ball sinking naturally`, null, 'Level');
@@ -316,7 +318,7 @@ export class Level {
     // Ball center aligns exactly with saucer center in all phases
     return {
       x: hole.position.x,
-      y: hole.position.y
+      y: hole.position.y,
     };
   }
 
@@ -366,7 +368,7 @@ export class Level {
             ballId: saucerState.ballId!,
             direction: saucerState.kickDirection,
             force: saucerState.kickForce,
-            holeId: hole.id
+            holeId: hole.id,
           };
 
           // Remove the power-up hole entirely from the playfield
@@ -388,7 +390,7 @@ export class Level {
    */
   public isBallInSaucer(ballId: string): boolean {
     return this.levelData.holes.some(hole => 
-      hole.saucerState?.isActive && hole.saucerState.ballId === ballId
+      hole.saucerState?.isActive && hole.saucerState.ballId === ballId,
     );
   }
 
@@ -423,74 +425,83 @@ export class Level {
       }
 
       switch (animState.phase) {
-        case 'animating_in':
-          // Scale up from 0% to 100% over duration with spring easing
-          const inProgress = Math.min(elapsed / animState.animatingInDuration, 1);
-          const newScale = MathUtils.easeSpring(inProgress); // Apply spring easing
+      case 'animating_in': {
+        // Scale up from 0% to 100% over duration with easeOutBack easing
+        const inProgress = Math.min(elapsed / animState.animatingInDuration, 1);
+        const newScale = MathUtils.easeOutBack(inProgress); // Apply easeOutBack easing for smooth overshoot
           
-          // Animation starting
+        animState.currentScale = newScale;
           
-          // Animation working correctly
-          animState.currentScale = newScale;
-          
-          if (elapsed >= animState.animatingInDuration) {
-            // Transition to idle phase
-            animState.phase = 'idle';
-            animState.startTime = currentTime;
-            animState.currentScale = 1.0; // Full scale
-            hole.isActive = true; // Hole becomes active when fully appeared
-            logger.info(`🌟 Animated hole entered idle phase: ${hole.id}`, null, 'Level');
-          }
-          break;
+        if (elapsed >= animState.animatingInDuration) {
+          // Transition to idle phase
+          animState.phase = 'idle';
+          animState.startTime = currentTime;
+          animState.currentScale = 1.0; // Full scale
+          hole.isActive = true; // Hole becomes active when fully appeared
+          logger.info(`🌟 Animated hole entered idle phase: ${hole.id}`, null, 'Level');
+        }
+        break;
+      }
 
-        case 'idle':
-          // Hold at full scale
-          animState.currentScale = 1.0;
+      case 'idle':
+        // Hold at full scale
+        animState.currentScale = 1.0;
           
-          if (elapsed >= animState.idleDuration) {
-            // Transition to animating out phase
-            animState.phase = 'animating_out';
-            animState.startTime = currentTime;
-            hole.isActive = false; // Hole becomes inactive when starting to disappear
-            logger.info(`🌟 Animated hole starting to animate out: ${hole.id}`, null, 'Level');
+        if (elapsed >= animState.idleDuration) {
+          // Transition to animating out phase
+          animState.phase = 'animating_out';
+          animState.startTime = currentTime;
+          hole.isActive = false; // Hole becomes inactive when starting to disappear
+            
+          // Play sound effect for hole starting to disappear
+          if (this.onSoundEffect) {
+            this.onSoundEffect('hole_disappear');
           }
-          break;
+            
+          logger.info(`🌟 Animated hole starting to animate out: ${hole.id}`, null, 'Level');
+        }
+        break;
 
-        case 'animating_out':
-          // Scale down from 100% to 0% over duration with spring easing
-          const outProgress = Math.min(elapsed / animState.animatingOutDuration, 1);
-          const newOutScale = 1.0 - MathUtils.easeSpring(outProgress); // Apply spring easing in reverse
+      case 'animating_out': {
+        // Scale down from 100% to 0% over duration with easeInBack easing
+        const outProgress = Math.min(elapsed / animState.animatingOutDuration, 1);
+        const newOutScale = 1.0 - MathUtils.easeInBack(outProgress); // Apply easeInBack easing for smooth acceleration out
           
-          // Clean animation without logging spam
-          animState.currentScale = newOutScale;
+        animState.currentScale = newOutScale;
           
-          if (elapsed >= animState.animatingOutDuration) {
-            // Transition to hidden phase
-            animState.phase = 'hidden';
-            animState.startTime = currentTime;
-            animState.currentScale = 0.0;
-            hole.isActive = false; // Hole becomes inactive when hidden
-            logger.info(`🌟 Animated hole entered hidden phase: ${hole.id}`, null, 'Level');
-          }
-          break;
-
-        case 'hidden':
-          // Hole is hidden and inactive
-          hole.isActive = false;
+        if (elapsed >= animState.animatingOutDuration) {
+          // Transition to hidden phase
+          animState.phase = 'hidden';
+          animState.startTime = currentTime;
           animState.currentScale = 0.0;
+          hole.isActive = false; // Hole becomes inactive when hidden
+          logger.info(`🌟 Animated hole entered hidden phase: ${hole.id}`, null, 'Level');
+        }
+        break;
+      }
+
+      case 'hidden':
+        // Hole is hidden and inactive
+        hole.isActive = false;
+        animState.currentScale = 0.0;
           
-          if (elapsed >= animState.hiddenDuration) {
-            // Transition back to animating in phase - cycle repeats
-            animState.phase = 'animating_in';
-            animState.startTime = currentTime;
-            animState.currentScale = 0.0;
+        if (elapsed >= animState.hiddenDuration) {
+          // Transition back to animating in phase - cycle repeats
+          animState.phase = 'animating_in';
+          animState.startTime = currentTime;
+          animState.currentScale = 0.0;
             
-            // Randomize idle duration for next cycle
-            animState.idleDuration = 3000 + Math.random() * 7000; // 3-10 seconds
+          // Randomize idle duration for next cycle
+          animState.idleDuration = 3000 + Math.random() * 7000; // 3-10 seconds
             
-            logger.info(`🔄 Animated hole starting new cycle: ${hole.id}`, null, 'Level');
+          // Play sound effect for hole starting to appear
+          if (this.onSoundEffect) {
+            this.onSoundEffect('hole_appear');
           }
-          break;
+            
+          logger.info(`🔄 Animated hole starting new cycle: ${hole.id}`, null, 'Level');
+        }
+        break;
       }
     }
   }
@@ -510,14 +521,14 @@ export class Level {
       isActive: false, // Start inactive, becomes active after animating in
       animationState: {
         isAnimated: true,
-        phase: 'animating_in',
+        phase: 'hidden', // Start hidden, not immediately visible
         startTime: Date.now(),
-        animatingInDuration: 1000, // 1 second with spring easing
-        idleDuration: 3000 + Math.random() * 7000, // 3-10 seconds
-        animatingOutDuration: 1000, // 1 second with spring easing
-        hiddenDuration: 2000 + Math.random() * 3000, // 2-5 seconds hidden
+        animatingInDuration: 500, // 0.5 seconds with easeOutBack (bouncy entrance)
+        idleDuration: 3000 + Math.random() * 7000, // 3-10 seconds visible
+        animatingOutDuration: 500, // 0.5 seconds with easeInBack (smooth acceleration out)
+        hiddenDuration: 5000 + Math.random() * 15000, // 5-20 seconds hidden
         currentScale: 0.0, // Start at 0% scale
-      }
+      },
     };
 
     this.levelData.holes.push(animatedHole);
@@ -728,29 +739,29 @@ export class LevelManager {
           }
         }
 
-                 if (validPosition) {
-           // Create animated hole with cycling behavior
-           const animatedHole: Hole = {
-             id: `animated-hole-${levelId}-${i}`,
-             position: { x: animX, y: animY },
-             radius: HOLE_RADIUS,
-             isGoal: false,
-             isActive: false, // Start inactive, becomes active after animating in
-             animationState: {
-               isAnimated: true,
-               phase: 'animating_in',
-               startTime: Date.now() + (i === 0 ? 0 : i * 1000), // First hole starts immediately, others staggered
-               animatingInDuration: 1000, // 1 second with spring easing
-               idleDuration: 3000 + Math.random() * 7000, // 3-10 seconds
-               animatingOutDuration: 1000, // 1 second with spring easing
-               hiddenDuration: 2000 + Math.random() * 3000, // 2-5 seconds hidden
-               currentScale: 0.0, // Start at 0% scale
-             }
-           };
+        if (validPosition) {
+          // Create animated hole with cycling behavior
+          const animatedHole: Hole = {
+            id: `animated-hole-${levelId}-${i}`,
+            position: { x: animX, y: animY },
+            radius: HOLE_RADIUS,
+            isGoal: false,
+            isActive: false, // Start inactive, becomes active after animating in
+            animationState: {
+              isAnimated: true,
+              phase: 'hidden', // Start hidden, not immediately visible
+              startTime: Date.now() + (i * 2000 + Math.random() * 3000), // Staggered start times (2-5s)
+              animatingInDuration: 500, // 0.5 seconds with easeOutBack (bouncy entrance)
+              idleDuration: 3000 + Math.random() * 7000, // 3-10 seconds visible
+              animatingOutDuration: 500, // 0.5 seconds with easeInBack (smooth acceleration out)
+              hiddenDuration: 5000 + Math.random() * 15000, // 5-20 seconds hidden
+              currentScale: 0.0, // Start at 0% scale
+            },
+          };
 
-           holes.push(animatedHole);
-           logger.info(`🌟 Created animated hole ${animatedHole.id} - starts in ${(animatedHole.animationState!.startTime - Date.now())/1000}s`, null, 'Level');
-         }
+          holes.push(animatedHole);
+          logger.info(`🌟 Created animated hole ${animatedHole.id} - starts in ${(animatedHole.animationState!.startTime - Date.now())/1000}s`, null, 'Level');
+        }
 
         attempts++;
       }
@@ -794,7 +805,7 @@ export class LevelManager {
   /**
    * Load a specific level
    */
-  public loadLevel(levelId: number): Level | null {
+  public loadLevel(levelId: number, onSoundEffect?: (soundName: string) => void): Level | null {
     const levelData = this.levels.get(levelId);
     if (!levelData) {
       logger.warn(`⚠️ Level ${levelId} not found`, null, 'Level');
@@ -806,7 +817,7 @@ export class LevelManager {
       return null;
     }
 
-    this.currentLevel = new Level(levelData);
+    this.currentLevel = new Level(levelData, onSoundEffect);
     return this.currentLevel;
   }
 

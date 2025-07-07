@@ -153,12 +153,12 @@ export class PowerUpManager {
 
     // Special cases
     switch (type) {
-      case PowerUpType.CIRCUIT_PATCH:
-        this.powerUpEffects.shieldActive = true;
-        break;
-      case PowerUpType.SCAN_REVEAL:
-        this.powerUpEffects.scanActive = true;
-        break;
+    case PowerUpType.CIRCUIT_PATCH:
+      this.powerUpEffects.shieldActive = true;
+      break;
+    case PowerUpType.SCAN_REVEAL:
+      this.powerUpEffects.scanActive = true;
+      break;
     }
   }
 
@@ -332,9 +332,9 @@ export class PowerUpManager {
     // Apply upgrade multiplier based on upgrade progress
     let upgradeLevel = 0;
     switch (type) {
-      case PowerUpType.SLOW_MO_SURGE:
-        upgradeLevel = this.upgradeProgress.slowMoCharges;
-        break;
+    case PowerUpType.SLOW_MO_SURGE:
+      upgradeLevel = this.upgradeProgress.slowMoCharges;
+      break;
       // Add other upgrade types as needed
     }
     
@@ -351,12 +351,12 @@ export class PowerUpManager {
     // Apply upgrade multiplier based on upgrade progress
     let upgradeLevel = 0;
     switch (type) {
-      case PowerUpType.SLOW_MO_SURGE:
-        upgradeLevel = this.upgradeProgress.slowMoCharges;
-        break;
-      case PowerUpType.CIRCUIT_PATCH:
-        upgradeLevel = this.upgradeProgress.shieldLevel;
-        break;
+    case PowerUpType.SLOW_MO_SURGE:
+      upgradeLevel = this.upgradeProgress.slowMoCharges;
+      break;
+    case PowerUpType.CIRCUIT_PATCH:
+      upgradeLevel = this.upgradeProgress.shieldLevel;
+      break;
       // Add other upgrade types as needed
     }
     
@@ -463,7 +463,7 @@ export class PowerUpManager {
     mass: number;
     friction: number;
     restitution: number;
-  } {
+    } {
     const ballConfig = getBallTypeConfig(this.upgradeProgress.currentBallType);
     return { ...ballConfig.physics };
   }
@@ -570,7 +570,7 @@ export class PowerUpManager {
     averageActivationTime: number;
     mostUsedPowerUp: PowerUpType | null;
     currentActiveCount: number;
-  } {
+    } {
     const stats = this.eventSystem.getUsageStatistics();
     const currentActiveCount = Array.from(this.activePowerUps.values())
       .filter(state => state.isActive).length;
