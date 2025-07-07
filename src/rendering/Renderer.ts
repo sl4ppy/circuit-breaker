@@ -15,16 +15,18 @@ export class Renderer {
   // Sprite images
   private backgroundSprite: HTMLImageElement | null = null;
   private spritesLoaded: boolean = false;
+  
+  // Tinting support
+  private currentTint: string | null = null;
 
   constructor() {
     Debug.log('🎨 Renderer initialized');
-    this.loadSprites();
   }
 
   /**
    * Load sprite images and atlas
    */
-  private async loadSprites(): Promise<void> {
+  public async loadSprites(): Promise<void> {
     try {
       // Load background sprite (using relative paths for GitHub Pages compatibility)
       this.backgroundSprite = new Image();
@@ -159,7 +161,7 @@ export class Renderer {
    */
   public drawTiltingBar(bar: TiltingBar): void {
     if (!this.ctx) return;
-
+    
     const endpoints = bar.getEndpoints();
 
     // Save context
@@ -183,10 +185,11 @@ export class Renderer {
     this.ctx.globalAlpha = 1;
 
     // Use sprite atlas if available, otherwise fallback to line rendering
-    if (this.spritesLoaded && spriteAtlas.isAtlasLoaded()) {
-      const barFrame = spriteAtlas.getFrame('bar_normal');
+    const atlasLoaded = spriteAtlas.isAtlasLoaded();
+          if (this.spritesLoaded && atlasLoaded) {
+        const barFrame = spriteAtlas.getFrame('bar_normal');
 
-      if (barFrame) {
+        if (barFrame) {
         // Calculate bar properties
         const barLength = Math.sqrt(
           Math.pow(endpoints.end.x - endpoints.start.x, 2) +
@@ -198,8 +201,8 @@ export class Renderer {
         );
 
         // Calculate scaling and tiling
-        const spriteScale = bar.thickness / barFrame.h; // Scale to match bar thickness
-        const scaledSpriteWidth = barFrame.w * spriteScale;
+        const spriteScale = bar.thickness / barFrame.frame.h; // Scale to match bar thickness
+        const scaledSpriteWidth = barFrame.frame.w * spriteScale;
         const tilesNeeded = Math.ceil(barLength / scaledSpriteWidth);
 
         // Calculate the center point of the actual bar (between endpoints)
@@ -479,27 +482,68 @@ export class Renderer {
     const centerX = hole.position.x;
     const centerY = hole.position.y;
     const isGoalHole = hole.isGoal;
+    const isPowerUpHole = hole.powerUpType !== undefined;
+    const isSaucerActive = hole.saucerState?.isActive || false;
 
     // Make holes 20% bigger for better visibility
     const enlargedRadius = hole.radius * 1.2;
 
     // Choose colors based on hole type
-    const activeColor = isGoalHole ? '#ff6600' : '#00ff99'; // Neon Orange for goals, Acid Green for regular holes
-    const darkColor = isGoalHole ? '#441100' : '#004400'; // Dark orange vs dark green
-    const darkerColor = isGoalHole ? '#220000' : '#002200'; // Darker orange vs darker green
+    let activeColor: string;
+    let darkColor: string;
+    let darkerColor: string;
+
+    if (isGoalHole) {
+      activeColor = '#ff6600'; // Neon Orange for goals
+      darkColor = '#441100';
+      darkerColor = '#220000';
+    } else if (isPowerUpHole) {
+      // Power-up hole colors based on type
+      const powerUpColors = {
+        'SLOW_MO_SURGE': { active: '#00ffff', dark: '#004444', darker: '#002222' }, // Cyan
+        'MAGNETIC_GUIDE': { active: '#ff00ff', dark: '#440044', darker: '#220022' }, // Magenta
+        'CIRCUIT_PATCH': { active: '#00ff00', dark: '#004400', darker: '#002200' }, // Green
+        'OVERCLOCK_BOOST': { active: '#ff6600', dark: '#441100', darker: '#220000' }, // Orange
+        'SCAN_REVEAL': { active: '#ffff00', dark: '#444400', darker: '#222200' }, // Yellow
+      };
+      const colors = powerUpColors[hole.powerUpType as keyof typeof powerUpColors] || powerUpColors['SLOW_MO_SURGE'];
+      activeColor = colors.active;
+      darkColor = colors.dark;
+      darkerColor = colors.darker;
+    } else {
+      activeColor = '#00ff99'; // Acid Green for regular holes
+      darkColor = '#004400';
+      darkerColor = '#002200';
+    }
 
     // Use sprite atlas if available, otherwise fallback to procedural rendering
-    if (this.spritesLoaded && spriteAtlas.isAtlasLoaded()) {
+    const atlasLoaded = spriteAtlas.isAtlasLoaded();
+    Debug.log(`🔍 Checking hole sprite: spritesLoaded=${this.spritesLoaded}, atlasLoaded=${atlasLoaded}`);
+    if (this.spritesLoaded && atlasLoaded) {
       // Choose sprite based on hole type
-      const spriteName = isGoalHole
-        ? 'ball_whole_powerup'
-        : 'ball_whole_normal';
-      const holeFrame = spriteAtlas.getFrame(spriteName);
+      let spriteName: string;
+      if (isGoalHole) {
+        spriteName = 'ball_whole_powerup';
+      } else if (isPowerUpHole) {
+        // Use specific power-up sprites from the power-up atlas
+        const powerUpSprites = {
+          'SLOW_MO_SURGE': 'hourglass',
+          'MAGNETIC_GUIDE': 'magnet',
+          'CIRCUIT_PATCH': 'chip',
+          'OVERCLOCK_BOOST': 'cross',
+          'SCAN_REVEAL': 'eye',
+        };
+        spriteName = powerUpSprites[hole.powerUpType as keyof typeof powerUpSprites] || 'hourglass';
+      } else {
+        spriteName = 'ball_whole_normal';
+      }
+      const frameData = spriteAtlas.getFrame(spriteName);
 
-      if (holeFrame) {
+      if (frameData) {
+        Debug.log(`🎯 Drawing sprite: ${spriteName} from atlas: ${frameData.atlas}`);
         // Calculate scaling to fit the enlarged hole radius
         const targetSize = enlargedRadius * 2;
-        const spriteScale = targetSize / Math.max(holeFrame.w, holeFrame.h);
+        const spriteScale = targetSize / Math.max(frameData.frame.w, frameData.frame.h);
 
         // Draw outer glow first (behind sprite) - only in debug mode
         if (debugMode) {
@@ -523,8 +567,8 @@ export class Renderer {
         spriteAtlas.drawSprite(
           this.ctx,
           spriteName,
-          centerX - (holeFrame.w * spriteScale) / 2, // Center horizontally
-          centerY - (holeFrame.h * spriteScale) / 2, // Center vertically
+          centerX - (frameData.frame.w * spriteScale) / 2, // Center horizontally
+          centerY - (frameData.frame.h * spriteScale) / 2, // Center vertically
           spriteScale,
         );
 
@@ -547,8 +591,11 @@ export class Renderer {
           this.ctx.textAlign = 'center';
           this.ctx.fillText('✓', centerX, centerY + 4);
         }
+
+        // Power-up holes now use sprites instead of text icons
       } else {
         // Fallback to procedural rendering if sprite not found
+        Debug.log(`⚠️ Sprite not found: ${spriteName}, using fallback rendering`);
         this.renderHoleFallback(
           hole,
           isCompleted,
@@ -562,20 +609,30 @@ export class Renderer {
           enlargedRadius,
         );
       }
-    } else {
-      // Fallback to procedural rendering if atlas not loaded
-      this.renderHoleFallback(
-        hole,
-        isCompleted,
-        centerX,
-        centerY,
-        isGoalHole,
-        activeColor,
-        darkColor,
-        darkerColor,
-        debugMode,
-        enlargedRadius,
-      );
+
+              // Draw saucer effects if active
+        if (isSaucerActive && isPowerUpHole) {
+          this.drawSaucerEffects(centerX, centerY, enlargedRadius, activeColor, hole);
+        }
+      } else {
+        // Fallback to procedural rendering if atlas not loaded
+        this.renderHoleFallback(
+          hole,
+          isCompleted,
+          centerX,
+          centerY,
+          isGoalHole,
+          activeColor,
+          darkColor,
+          darkerColor,
+          debugMode,
+          enlargedRadius,
+        );
+
+        // Draw saucer effects if active
+        if (isSaucerActive && isPowerUpHole) {
+          this.drawSaucerEffects(centerX, centerY, enlargedRadius, activeColor, hole);
+        }
     }
 
     this.ctx.restore();
@@ -585,7 +642,7 @@ export class Renderer {
    * Fallback hole rendering using procedural graphics
    */
   private renderHoleFallback(
-    _hole: Hole, // Unused parameter - kept for interface compatibility
+    hole: Hole,
     isCompleted: boolean,
     centerX: number,
     centerY: number,
@@ -671,7 +728,149 @@ export class Renderer {
       this.ctx.font = '10px monospace';
       this.ctx.textAlign = 'center';
       this.ctx.fillText(isGoalHole ? '🎯' : '●', centerX, centerY + 3);
+
+      // Add power-up icon if this is a power-up hole
+      if (hole.powerUpType) {
+        const powerUpIcons = {
+          'SLOW_MO_SURGE': '⏰',
+          'MAGNETIC_GUIDE': '🧲',
+          'CIRCUIT_PATCH': '🛡️',
+          'OVERCLOCK_BOOST': '⚡',
+          'SCAN_REVEAL': '🔍',
+        };
+        
+        const icon = powerUpIcons[hole.powerUpType as keyof typeof powerUpIcons] || '?';
+        
+        // Draw icon with glow effect
+        this.ctx.shadowColor = activeColor;
+        this.ctx.shadowBlur = 8;
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = '14px Interceptor';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText(icon, centerX, centerY + 5);
+        
+        // Reset shadow
+        this.ctx.shadowBlur = 0;
+      }
     }
+  }
+
+  /**
+   * Draw saucer effects for power-up holes
+   */
+  private drawSaucerEffects(centerX: number, centerY: number, radius: number, color: string, hole: Hole): void {
+    if (!this.ctx || !hole.saucerState) return;
+
+    this.ctx.save();
+
+    const saucerState = hole.saucerState;
+    const time = Date.now() * 0.01;
+
+    // Different effects based on phase
+    if (saucerState.phase === 'sinking') {
+      // Sinking phase - pulsing glow with downward motion
+      const pulseIntensity = 0.7 + 0.3 * Math.sin(time * 4);
+      this.ctx.shadowColor = color;
+      this.ctx.shadowBlur = 25 * pulseIntensity;
+      this.ctx.globalAlpha = 0.8 * pulseIntensity;
+
+      // Draw sinking animation rings
+      const sinkProgress = saucerState.sinkDepth;
+      for (let i = 0; i < 3; i++) {
+        const ringRadius = radius + 4 + i * 4;
+        const ringAlpha = 0.6 * (1 - i * 0.3) * (1 - sinkProgress * 0.5);
+        this.ctx.globalAlpha = ringAlpha;
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, centerY + sinkProgress * 4, ringRadius, 0, Math.PI * 2);
+        this.ctx.stroke();
+      }
+
+      // Draw "SINKING" text
+      this.ctx.fillStyle = color;
+      this.ctx.font = '8px Interceptor';
+      this.ctx.textAlign = 'center';
+      this.ctx.globalAlpha = 0.9;
+      this.ctx.fillText('SINKING', centerX, centerY + radius + 20);
+
+    } else if (saucerState.phase === 'waiting') {
+      // Waiting phase - steady glow with pulsing
+      const pulseIntensity = 0.6 + 0.2 * Math.sin(time * 2);
+      this.ctx.shadowColor = color;
+      this.ctx.shadowBlur = 20 * pulseIntensity;
+      this.ctx.globalAlpha = 0.7 * pulseIntensity;
+
+      // Draw steady rings
+      this.ctx.strokeStyle = color;
+      this.ctx.lineWidth = 3;
+      this.ctx.beginPath();
+      this.ctx.arc(centerX, centerY, radius + 8, 0, Math.PI * 2);
+      this.ctx.stroke();
+
+      this.ctx.lineWidth = 2;
+      this.ctx.beginPath();
+      this.ctx.arc(centerX, centerY, radius + 4, 0, Math.PI * 2);
+      this.ctx.stroke();
+
+      // Draw spinning effect
+      const spinAngle = time * 1.5;
+      const spinRadius = radius + 6;
+      
+      this.ctx.strokeStyle = color;
+      this.ctx.lineWidth = 1;
+      this.ctx.globalAlpha = 0.8;
+      
+      for (let i = 0; i < 4; i++) {
+        const angle = spinAngle + (i * Math.PI / 2);
+        const x1 = centerX + Math.cos(angle) * spinRadius;
+        const y1 = centerY + Math.sin(angle) * spinRadius;
+        const x2 = centerX + Math.cos(angle) * (spinRadius + 6);
+        const y2 = centerY + Math.sin(angle) * (spinRadius + 6);
+        
+        this.ctx.beginPath();
+        this.ctx.moveTo(x1, y1);
+        this.ctx.lineTo(x2, y2);
+        this.ctx.stroke();
+      }
+
+      // Draw "WAITING" text
+      this.ctx.fillStyle = color;
+      this.ctx.font = '8px Interceptor';
+      this.ctx.textAlign = 'center';
+      this.ctx.globalAlpha = 0.9;
+      this.ctx.fillText('WAITING', centerX, centerY + radius + 20);
+
+    } else if (saucerState.phase === 'ejecting') {
+      // Ejecting phase - intense glow with upward motion
+      const ejectProgress = Math.min((Date.now() - saucerState.startTime) / 200, 1);
+      const pulseIntensity = 0.8 + 0.4 * Math.sin(time * 6);
+      this.ctx.shadowColor = color;
+      this.ctx.shadowBlur = 30 * pulseIntensity;
+      this.ctx.globalAlpha = 0.9 * pulseIntensity;
+
+      // Draw ejection rings moving upward
+      for (let i = 0; i < 3; i++) {
+        const ringRadius = radius + 2 + i * 3;
+        const ringY = centerY - ejectProgress * 10 * (i + 1);
+        const ringAlpha = 0.7 * (1 - i * 0.3) * (1 - ejectProgress * 0.3);
+        this.ctx.globalAlpha = ringAlpha;
+        this.ctx.strokeStyle = color;
+        this.ctx.lineWidth = 2;
+        this.ctx.beginPath();
+        this.ctx.arc(centerX, ringY, ringRadius, 0, Math.PI * 2);
+        this.ctx.stroke();
+      }
+
+      // Draw "EJECTING" text
+      this.ctx.fillStyle = color;
+      this.ctx.font = '8px Interceptor';
+      this.ctx.textAlign = 'center';
+      this.ctx.globalAlpha = 0.9;
+      this.ctx.fillText('EJECTING', centerX, centerY + radius + 20);
+    }
+
+    this.ctx.restore();
   }
 
   /**
@@ -727,7 +926,7 @@ export class Renderer {
     animationState?: { scale: number; opacity: number },
   ): void {
     if (!this.ctx) return;
-
+    
     this.ctx.save();
 
     const x = ball.position.x;
@@ -740,14 +939,15 @@ export class Renderer {
     this.ctx.globalAlpha = opacity;
 
     // Use sprite atlas if loaded, otherwise fallback to procedural rendering
-    if (this.spritesLoaded && spriteAtlas.isAtlasLoaded()) {
+    const atlasLoaded = spriteAtlas.isAtlasLoaded();
+    if (this.spritesLoaded && atlasLoaded) {
       // Draw sprite-based ball from atlas
       const targetSize = radius * 2 * scale;
       const spriteFrame = spriteAtlas.getFrame('ball_normal');
 
       if (spriteFrame) {
         // Calculate scale to fit the ball size (64x64 sprite to ball diameter)
-        const spriteScale = targetSize / spriteFrame.w;
+        const spriteScale = targetSize / spriteFrame.frame.w;
 
         // Draw shadow behind sprite
         this.ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
@@ -971,13 +1171,42 @@ export class Renderer {
   ): boolean {
     if (!this.ctx || !spriteAtlas.isAtlasLoaded()) return false;
 
-    const frame = spriteAtlas.getFrame(spriteName);
-    if (!frame) return false;
+    const frameData = spriteAtlas.getFrame(spriteName);
+    if (!frameData) return false;
 
-    const drawX = centered ? x - (frame.w * scale) / 2 : x;
-    const drawY = centered ? y - (frame.h * scale) / 2 : y;
+    const drawX = centered ? x - (frameData.frame.w * scale) / 2 : x;
+    const drawY = centered ? y - (frameData.frame.h * scale) / 2 : y;
 
-    return spriteAtlas.drawSprite(this.ctx, spriteName, drawX, drawY, scale);
+    // Apply tint if set
+    if (this.currentTint) {
+      this.ctx.save();
+      this.ctx.globalCompositeOperation = 'multiply';
+      this.ctx.fillStyle = this.currentTint;
+      this.ctx.globalAlpha = 0.3;
+    }
+
+    const result = spriteAtlas.drawSprite(this.ctx, spriteName, drawX, drawY, scale);
+
+    // Restore context if tint was applied
+    if (this.currentTint) {
+      this.ctx.restore();
+    }
+
+    return result;
+  }
+
+  /**
+   * Set tint color for sprites
+   */
+  public setTint(color: string): void {
+    this.currentTint = color;
+  }
+
+  /**
+   * Clear tint color
+   */
+  public clearTint(): void {
+    this.currentTint = null;
   }
 
   /**

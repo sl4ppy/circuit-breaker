@@ -15,6 +15,7 @@
 - **Realistic Pinball Physics**: Heavy steel ball with authentic weight and bounce
 - **Tilting Bar Control**: Independent left/right bar movement for precise navigation
 - **Level Progression**: Multi-goal system with increasing difficulty
+- **Power-Up Saucer System**: Pinball-style saucers that collect balls and grant power-ups
 - **Dynamic Audio Feedback**: Velocity-based sound effects for all interactions
 
 ## Novel Technical Implementations
@@ -32,6 +33,7 @@
 ### Advanced Rendering Pipeline
 - **Sprite Atlas System**: Professional sprite rendering with procedural fallbacks
 - **Dynamic Depth Management**: Proper layering system (holes → bar/glow → ball)
+- **Saucer Visual Effects**: Phase-specific animations for sinking, waiting, and ejecting
 - **Attract Mode**: Automated gameplay demonstration with AI-controlled bar movement
 
 ## Roadmap
@@ -44,7 +46,7 @@
 ### 📋 Upcoming Features
 - **Level Editor**: Custom level creation tools
 - **Leaderboard System**: Global high scores
-- **Power-ups**: Special abilities and temporary effects
+- **Enhanced Power-ups**: Advanced power-up effects and combinations
 - **Multiplayer**: Turn-based competitive gameplay
 
 ## Getting Started

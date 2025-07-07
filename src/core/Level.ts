@@ -3,6 +3,7 @@
 
 import { Vector2 } from '../utils/MathUtils';
 import { logger } from '../utils/Logger';
+import { PowerUpType } from './PowerUpManager';
 
 export interface Hole {
   id: string;
@@ -10,6 +11,23 @@ export interface Hole {
   radius: number;
   isGoal: boolean;
   isActive: boolean;
+  powerUpType?: PowerUpType; // Optional power-up type for power-up holes
+  
+  // Saucer behavior for power-up holes
+  saucerState?: {
+    isActive: boolean;
+    ballId?: string;
+    startTime: number;
+    phase: 'sinking' | 'waiting' | 'ejecting';
+    sinkDuration: number;
+    waitDuration: number;
+    kickDirection: { x: number; y: number };
+    kickForce: number;
+    sinkDepth: number; // How deep the ball sinks (0-1)
+  };
+  
+  // Track recently kicked balls to prevent re-entry
+  recentlyKickedBalls?: Set<string>;
 }
 
 export interface LevelData {
@@ -72,12 +90,23 @@ export class Level {
   public checkHoleCollision(
     ballPosition: Vector2,
     _ballRadius: number,
+    ballId?: string,
   ): Hole | null {
     for (const hole of this.levelData.holes) {
       if (!hole.isActive) continue;
 
       // Skip completed goal holes - balls can no longer fall into them
       if (hole.isGoal && this.completedGoals.has(hole.id)) {
+        continue;
+      }
+
+      // Skip holes that are currently in saucer mode
+      if (hole.saucerState?.isActive) {
+        continue;
+      }
+
+      // Skip holes if this ball was recently kicked from them
+      if (ballId && hole.recentlyKickedBalls?.has(ballId)) {
         continue;
       }
 
@@ -172,6 +201,22 @@ export class Level {
   }
 
   /**
+   * Get goal hole at a specific position
+   */
+  public getGoalHoleAtPosition(ballPosition: Vector2): Hole | null {
+    for (const goalHole of this.levelData.goalHoles) {
+      const dx = ballPosition.x - goalHole.position.x;
+      const dy = ballPosition.y - goalHole.position.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+
+      if (distance <= goalHole.radius) {
+        return goalHole;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Mark level as complete
    */
   public markComplete(): void {
@@ -207,6 +252,139 @@ export class Level {
    */
   public getLevelData(): LevelData {
     return this.levelData;
+  }
+
+  /**
+   * Start saucer behavior for a power-up hole
+   */
+  public startSaucerBehavior(holeId: string, ballId: string, currentTime: number): void {
+    const hole = this.levelData.holes.find(h => h.id === holeId);
+    if (!hole || !hole.powerUpType) return;
+
+    // Calculate kick direction (upward and slightly random)
+    const kickAngle = Math.PI * 0.75 + (Math.random() - 0.5) * 0.5; // 135° ± 15°
+    const kickDirection = {
+      x: Math.cos(kickAngle),
+      y: Math.sin(kickAngle)
+    };
+
+    hole.saucerState = {
+      isActive: true,
+      ballId: ballId,
+      startTime: currentTime,
+      phase: 'sinking',
+      sinkDuration: 500, // 0.5 seconds to sink
+      waitDuration: 2000 + Math.random() * 2000, // 2-4 seconds to wait
+      kickDirection: kickDirection,
+      kickForce: 200 + Math.random() * 150, // Lighter kick force (200-350)
+      sinkDepth: 0 // Start at surface
+    };
+
+    logger.info(`🛸 Started saucer behavior for hole: ${holeId}`, null, 'Level');
+  }
+
+  /**
+   * Get the target position for a ball in a saucer (with sink depth)
+   */
+  public getSaucerBallPosition(holeId: string): { x: number; y: number } | null {
+    const hole = this.levelData.holes.find(h => h.id === holeId);
+    if (!hole || !hole.saucerState?.isActive) return null;
+
+    const saucerState = hole.saucerState;
+    const sinkOffset = saucerState.sinkDepth * 8; // Sink up to 8 pixels deep
+
+    // Return position with sink depth applied
+    return {
+      x: hole.position.x,
+      y: hole.position.y + sinkOffset
+    };
+  }
+
+  /**
+   * Update saucer behavior and return kick data if ready
+   */
+  public updateSaucerBehavior(currentTime: number): { ballId: string; direction: { x: number; y: number }; force: number; holeId: string } | null {
+    for (const hole of this.levelData.holes) {
+      if (!hole.saucerState?.isActive) continue;
+
+      const elapsed = currentTime - hole.saucerState.startTime;
+      const saucerState = hole.saucerState;
+
+      if (saucerState.phase === 'sinking') {
+        // Ball is sinking into the saucer
+        const sinkProgress = Math.min(elapsed / saucerState.sinkDuration, 1);
+        saucerState.sinkDepth = sinkProgress;
+
+        if (sinkProgress >= 1) {
+          // Transition to waiting phase
+          saucerState.phase = 'waiting';
+          saucerState.startTime = currentTime; // Reset timer for waiting phase
+          logger.info(`⏳ Saucer waiting phase started for hole: ${hole.id}`, null, 'Level');
+        }
+      } else if (saucerState.phase === 'waiting') {
+        // Ball is waiting in the saucer
+        const waitElapsed = currentTime - saucerState.startTime;
+        if (waitElapsed >= saucerState.waitDuration) {
+          // Transition to ejecting phase
+          saucerState.phase = 'ejecting';
+          saucerState.startTime = currentTime; // Reset timer for ejecting phase
+          logger.info(`🚀 Saucer ejecting phase started for hole: ${hole.id}`, null, 'Level');
+        }
+      } else if (saucerState.phase === 'ejecting') {
+        // Ball is being ejected
+        const ejectElapsed = currentTime - saucerState.startTime;
+        if (ejectElapsed >= 200) { // 0.2 seconds to complete ejection
+          // Saucer is ready to kick the ball
+          const kickData = {
+            ballId: saucerState.ballId!,
+            direction: saucerState.kickDirection,
+            force: saucerState.kickForce,
+            holeId: hole.id
+          };
+
+          // Remove the power-up saucer entirely from the playfield
+          hole.saucerState = undefined;
+          hole.isActive = false;
+          
+          // Track this ball as recently kicked to prevent re-entry
+          if (!hole.recentlyKickedBalls) {
+            hole.recentlyKickedBalls = new Set();
+          }
+          hole.recentlyKickedBalls.add(saucerState.ballId!);
+          
+          // Clear the recently kicked balls after a short delay (1 second)
+          setTimeout(() => {
+            if (hole.recentlyKickedBalls) {
+              hole.recentlyKickedBalls.delete(saucerState.ballId!);
+            }
+          }, 1000);
+          
+          logger.info(`🚀 Saucer removed from playfield after ejecting ball from hole: ${hole.id}`, null, 'Level');
+          return kickData;
+        }
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Check if a ball is currently in a saucer
+   */
+  public isBallInSaucer(ballId: string): boolean {
+    return this.levelData.holes.some(hole => 
+      hole.saucerState?.isActive && hole.saucerState.ballId === ballId
+    );
+  }
+
+  /**
+   * Deactivate a specific hole (used for power-up holes after collection)
+   */
+  public deactivateHole(holeId: string): void {
+    const hole = this.levelData.holes.find(h => h.id === holeId);
+    if (hole) {
+      hole.isActive = false;
+      logger.info(`🚫 Deactivated hole: ${holeId}`, null, 'Level');
+    }
   }
 
   /**
@@ -251,6 +429,16 @@ export class LevelManager {
     const HOLE_START_Y = BAR_START_POSITION - 10; // Y=580
     const TOP_BOUNDARY = 50; // Top of playfield
     const GOAL_AREA_HEIGHT = 100; // Reserve top 100px for goal
+
+    // Power-up hole configurations - limit to 1-2 power-ups per level
+    const maxPowerUpsPerLevel = Math.min(2, Math.max(1, Math.floor(levelId / 2))); // 1 for level 1-2, 2 for level 3+
+    const powerUpHoleConfigs = [
+      { type: PowerUpType.SLOW_MO_SURGE, spawnChance: 0.15, color: '#00ffff' },
+      { type: PowerUpType.MAGNETIC_GUIDE, spawnChance: 0.12, color: '#ff00ff' },
+      { type: PowerUpType.CIRCUIT_PATCH, spawnChance: 0.08, color: '#00ff00' },
+      { type: PowerUpType.OVERCLOCK_BOOST, spawnChance: 0.10, color: '#ff6600' },
+      { type: PowerUpType.SCAN_REVEAL, spawnChance: 0.06, color: '#ffff00' },
+    ];
 
     // Generate goal holes near the top (Y: 50-150)
     const goalHoles: Hole[] = [];
@@ -304,6 +492,9 @@ export class LevelManager {
     const baseDensity = 0.05 + (levelId - 1) * 0.01; // Very sparse at bottom
     const maxDensity = 0.3 + (levelId - 1) * 0.08; // Dense at top
 
+    // Track power-up holes to limit them
+    let powerUpHolesCreated = 0;
+
     for (let section = 0; section < sections; section++) {
       // Section 0 is at bottom (Y=580), section 9 is near top (Y=150)
       const sectionY = HOLE_START_Y - (section + 1) * sectionHeight;
@@ -335,12 +526,28 @@ export class LevelManager {
           }
 
           if (validPosition) {
+            // Determine if this hole should be a power-up hole
+            let powerUpType: PowerUpType | undefined = undefined;
+            
+            // Only create power-up holes if we haven't reached the limit
+            if (powerUpHolesCreated < maxPowerUpsPerLevel) {
+              // Check each power-up type for this hole
+              for (const config of powerUpHoleConfigs) {
+                if (Math.random() < config.spawnChance) {
+                  powerUpType = config.type;
+                  powerUpHolesCreated++;
+                  break; // Only one power-up per hole
+                }
+              }
+            }
+            
             holes.push({
               id: `hole-${levelId}-${section}-${i}`,
               position: { x, y },
               radius: HOLE_RADIUS,
               isGoal: false,
               isActive: true,
+              powerUpType: powerUpType,
             });
           }
 
@@ -350,7 +557,7 @@ export class LevelManager {
     }
 
     logger.info(
-      `🕳️ Generated ${holes.length} holes for level ${levelId} (sparse at bottom, dense at top)`,
+      `🕳️ Generated ${holes.length} holes for level ${levelId} (${powerUpHolesCreated} power-up holes, sparse at bottom, dense at top)`,
       null,
       'Level',
     );
