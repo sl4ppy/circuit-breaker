@@ -3,12 +3,10 @@
 
 import './style.css';
 import { Game } from './core/Game';
-import { Renderer } from './rendering/Renderer';
 import { logger } from './utils/Logger';
 
 // Global game instance
 let game: Game | null = null;
-let renderer: Renderer | null = null;
 
 /**
  * Initialize the game when DOM is ready
@@ -31,14 +29,10 @@ async function initGame(): Promise<void> {
     canvas.height = 640;
     gameContainer.appendChild(canvas);
 
-    // Initialize renderer
-    renderer = new Renderer();
-    renderer.init(canvas);
-
     // Create game instance
     game = new Game();
 
-    // Initialize game systems
+    // Initialize game systems (this will initialize the renderer and load sprites)
     await game.init();
 
     // Start the game

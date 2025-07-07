@@ -18,6 +18,8 @@ import { StatsMenu } from '../ui/StatsMenu';
 import { StorageManager, GameProgress } from './StorageManager';
 import { AchievementManager } from './AchievementManager';
 import { StatsManager } from './StatsManager';
+import { PowerUpManager, PowerUpType } from './PowerUpManager';
+
 
 export class Game {
   private gameState: GameState;
@@ -35,6 +37,7 @@ export class Game {
   private storageManager: StorageManager;
   private achievementManager: AchievementManager;
   private statsManager: StatsManager;
+  private powerUpManager: PowerUpManager;
   private currentLevel: Level | null = null;
   private isRunning: boolean = false;
   private levelCompletionHandled: boolean = false;
@@ -49,6 +52,8 @@ export class Game {
     startPosition: { x: number; y: number };
     scale: number;
     opacity: number;
+    isGoalHole: boolean; // Track if this is a goal hole animation
+    isPowerUpHole: boolean; // Track if this is a power-up hole animation
   } | null = null;
 
   // Attract mode properties
@@ -81,6 +86,7 @@ export class Game {
     this.storageManager = new StorageManager();
     this.achievementManager = new AchievementManager();
     this.statsManager = new StatsManager();
+    this.powerUpManager = new PowerUpManager();
     this.settingsMenu = new SettingsMenu({
       audioManager: this.audioManager,
       onClose: () => this.closeSettings(),
@@ -131,6 +137,11 @@ export class Game {
         throw new Error('Canvas element not found');
       }
       this.renderer.init(canvas);
+      
+      // Load sprites and atlas
+      logger.info('🎨 Loading sprite atlas...', null, 'Game');
+      await this.renderer.loadSprites();
+      logger.info('✅ Sprite atlas loading completed', null, 'Game');
 
       // Preload custom fonts
       await fontManager.preloadFonts();
@@ -148,6 +159,32 @@ export class Game {
           this.audioManager.playBounceSound(velocity);
         }
       });
+
+      // Override physics engine's ball held check to include saucer state
+      const originalIsBallHeld = this.physicsEngine.isBallHeld.bind(this.physicsEngine);
+      this.physicsEngine.isBallHeld = (ballId: string) => {
+        // Check if ball is in a saucer
+        if (this.currentLevel && this.currentLevel.isBallInSaucer(ballId)) {
+          return true;
+        }
+        return originalIsBallHeld(ballId);
+      };
+
+      // Override physics engine's held ball target to get saucer position
+      const originalGetHeldBallTarget = this.physicsEngine.getHeldBallTarget.bind(this.physicsEngine);
+      this.physicsEngine.getHeldBallTarget = (ballId: string) => {
+        // Get saucer position for held ball
+        if (this.currentLevel) {
+          // Find which hole has this ball in saucer mode
+          const levelData = this.currentLevel.getLevelData();
+          for (const hole of levelData.holes) {
+            if (hole.saucerState?.isActive && hole.saucerState.ballId === ballId) {
+              return this.currentLevel.getSaucerBallPosition(hole.id);
+            }
+          }
+        }
+        return originalGetHeldBallTarget(ballId);
+      };
 
       // Initialize input manager
       this.inputManager.init(canvas);
@@ -170,15 +207,18 @@ export class Game {
       const ballStartX = -50; // Off the left side (hidden)
       const ballStartY = 300; // Middle height (will be repositioned when started)
 
+      // Get ball physics properties from power-up manager
+      const ballPhysics = this.powerUpManager.getBallPhysicsProperties();
+      
       // Create main game ball with realistic pinball physics
       const ball = this.physicsEngine.createObject({
         id: 'game-ball',
         x: ballStartX,
         y: ballStartY,
         radius: ballRadius,
-        mass: 6, // Heavy steel ball (6x heavier than generic ball)
-        restitution: 0.65, // Moderate bounce like real pinball
-        friction: 0.18, // Steel on metal/plastic surface friction
+        mass: ballPhysics.mass,
+        restitution: ballPhysics.restitution,
+        friction: ballPhysics.friction,
         isStatic: false,
       });
 
@@ -187,13 +227,17 @@ export class Game {
       // Sync physics engine debug mode with game state debug mode
       this.physicsEngine.setDebug(this.gameState.isDebugMode());
 
-      // Load the first level
-      this.currentLevel = this.levelManager.loadLevel(1);
-      if (this.currentLevel) {
-        this.currentLevel.start();
-        this.levelCompletionHandled = false; // Initialize completion flag
-        logger.info('🎯 Level 1 loaded and started', null, 'Game');
-      }
+      // Initialize power-ups for the run
+      this.powerUpManager.initializeRun();
+      
+          // Load the first level
+    this.currentLevel = this.levelManager.loadLevel(1);
+    if (this.currentLevel) {
+      this.currentLevel.start();
+      this.levelCompletionHandled = false; // Initialize completion flag
+      
+      logger.info('🎯 Level 1 loaded and started', null, 'Game');
+    }
 
       this.isRunning = true;
       
@@ -461,6 +505,9 @@ export class Game {
 
     // Only process gameplay logic when actually playing
     if (this.gameState.isPlaying()) {
+      // Update power-up manager
+      this.powerUpManager.update(deltaTime);
+      
       // Auto-save and check achievements during gameplay
       this.autoSave();
       this.checkAchievements();
@@ -493,6 +540,9 @@ export class Game {
         this.audioManager.playSound('ui_click');
       }
 
+      // Handle power-up activation
+      this.handlePowerUpInput();
+
       // Update tilting bar based on independent side controls (absolute movement)
       const leftSideInput = this.inputManager.getLeftSideInput();
       const rightSideInput = this.inputManager.getRightSideInput();
@@ -504,6 +554,10 @@ export class Game {
       // Update current level
       if (this.currentLevel) {
         this.currentLevel.update(deltaTime);
+        
+        // Update saucer behavior
+        this.updateSaucerBehavior();
+        
         // Only check collisions if not animating
         if (!this.isAnimatingHoleFall) {
           this.checkCollisions();
@@ -524,15 +578,18 @@ export class Game {
     if (this.currentLevel) {
       const levelData = this.currentLevel.getLevelData();
 
-      // Draw holes FIRST (under everything)
-      levelData.holes.forEach(hole => {
+      // Draw holes FIRST (under everything) - only draw active holes
+      for (const hole of levelData.holes) {
+        // Skip deactivated holes (like collected power-up holes)
+        if (!hole.isActive) continue;
+        
         // Check if this goal hole has been completed
         const isCompleted =
           hole.isGoal && this.currentLevel
             ? this.currentLevel.isGoalCompleted(hole.id)
             : false;
         this.renderer.drawHole(hole, isCompleted, this.gameState.isDebugMode());
-      });
+      }
     }
 
     // Render tilting bar AFTER holes (so it appears on top)
@@ -598,6 +655,9 @@ export class Game {
       }
     }
 
+    // Render power-up effects
+    this.renderPowerUpEffects();
+
     // Render settings menu if open
     if (this.gameState.isSettings()) {
       const ctx = this.renderer.getContext();
@@ -619,12 +679,236 @@ export class Game {
       : null;
   }
 
+
+
+  /**
+   * Render power-up effects and UI
+   */
+  private renderPowerUpEffects(): void {
+    const ctx = this.renderer.getContext();
+    if (!ctx) return;
+
+    // Get active power-ups
+    const activePowerUps = this.powerUpManager.getActivePowerUps();
+    const powerUpEffects = this.powerUpManager.getPowerUpEffects();
+
+    // Render power-up overlays
+    if (powerUpEffects.timeScale) {
+      // Slow-Mo Surge overlay - more prominent
+      ctx.fillStyle = 'rgba(0, 255, 255, 0.4)'; // More opaque cyan overlay
+      ctx.fillRect(0, 0, 360, 640);
+      
+      // Add pulsing effect
+      const pulseIntensity = 0.2 + 0.1 * Math.sin(Date.now() * 0.01);
+      ctx.fillStyle = `rgba(0, 255, 255, ${pulseIntensity})`;
+      ctx.fillRect(0, 0, 360, 640);
+    }
+
+    // Render power-up HUD
+    this.renderPowerUpHUD(ctx, activePowerUps);
+  }
+
+  /**
+   * Render power-up HUD
+   */
+  private renderPowerUpHUD(ctx: CanvasRenderingContext2D, activePowerUps: Map<PowerUpType, any>): void {
+    const powerUpSprites = {
+      [PowerUpType.SLOW_MO_SURGE]: 'hourglass',
+      [PowerUpType.MAGNETIC_GUIDE]: 'magnet',
+      [PowerUpType.CIRCUIT_PATCH]: 'chip',
+      [PowerUpType.OVERCLOCK_BOOST]: 'cross',
+      [PowerUpType.SCAN_REVEAL]: 'eye',
+    };
+
+    // Power-up names for display (currently unused but kept for future use)
+    // const powerUpNames = {
+    //   [PowerUpType.SLOW_MO_SURGE]: 'Slow-Mo',
+    //   [PowerUpType.MAGNETIC_GUIDE]: 'Magnetic',
+    //   [PowerUpType.CIRCUIT_PATCH]: 'Shield',
+    //   [PowerUpType.OVERCLOCK_BOOST]: 'Overclock',
+    //   [PowerUpType.SCAN_REVEAL]: 'Scan',
+    // };
+
+    // Render power-up status with icons only: left, center, right
+    const screenWidth = 360;
+    const padding = 20; // Padding from edges
+    
+    // Define positions for each power-up type
+    const powerUpPositions = {
+      [PowerUpType.SLOW_MO_SURGE]: { x: padding + 30, align: 'center' },
+      [PowerUpType.MAGNETIC_GUIDE]: { x: padding + 80, align: 'center' },
+      [PowerUpType.CIRCUIT_PATCH]: { x: screenWidth / 2, align: 'center' },
+      [PowerUpType.OVERCLOCK_BOOST]: { x: screenWidth - padding - 80, align: 'center' },
+      [PowerUpType.SCAN_REVEAL]: { x: screenWidth - padding - 30, align: 'center' },
+    };
+    
+    activePowerUps.forEach((state, type) => {
+      const spriteName = powerUpSprites[type];
+      const charges = state.charges;
+      const isActive = state.isActive;
+      const position = powerUpPositions[type];
+
+      // Draw power-up sprite
+      if (spriteName && this.renderer) {
+        const spriteScale = 0.4; // Scale down for HUD
+        const spriteY = 610 - 20; // Position above text
+        
+        // Set color tint based on active state
+        if (isActive) {
+          if (type === PowerUpType.SLOW_MO_SURGE) {
+            // Add countdown timer for active Slow-Mo
+            const elapsed = Date.now() - state.startTime;
+            const remaining = Math.max(0, state.duration - elapsed);
+            const secondsRemaining = Math.ceil(remaining / 1000);
+            
+            // Change color based on remaining time
+            if (secondsRemaining <= 1) {
+              this.renderer.setTint('#ff0000'); // Red when almost done
+            } else if (secondsRemaining <= 2) {
+              this.renderer.setTint('#ff6600'); // Orange when low
+            } else {
+              this.renderer.setTint('#00ff00'); // Green when plenty of time
+            }
+          } else {
+            this.renderer.setTint('#00ff00'); // Green for active
+          }
+        } else {
+          this.renderer.setTint('#ffffff'); // White for inactive
+        }
+        
+        this.renderer.drawAtlasSprite(spriteName, position.x, spriteY, spriteScale);
+        this.renderer.clearTint();
+      }
+      
+      // Draw charge count
+      ctx.fillStyle = isActive ? '#00ff00' : '#ffffff';
+      ctx.font = '14px Interceptor';
+      ctx.textAlign = 'center';
+      
+      let displayText = `${charges}`;
+      
+      // Add countdown timer for active Slow-Mo
+      if (isActive && type === PowerUpType.SLOW_MO_SURGE) {
+        const elapsed = Date.now() - state.startTime;
+        const remaining = Math.max(0, state.duration - elapsed);
+        const secondsRemaining = Math.ceil(remaining / 1000);
+        displayText = `${charges}[${secondsRemaining}s]`;
+        
+        // Change color based on remaining time
+        if (secondsRemaining <= 1) {
+          ctx.fillStyle = '#ff0000'; // Red when almost done
+        } else if (secondsRemaining <= 2) {
+          ctx.fillStyle = '#ff6600'; // Orange when low
+        } else {
+          ctx.fillStyle = '#00ff00'; // Green when plenty of time
+        }
+      }
+      
+      ctx.fillText(displayText, position.x, 610);
+    });
+
+    // Render power-up controls hint
+    if (this.gameState.isDebugMode()) {
+      ctx.fillStyle = '#00f0ff';
+      ctx.font = '10px Interceptor';
+      ctx.textAlign = 'left';
+      ctx.fillText('Power-ups: Q(Slow-Mo) W(Magnetic) E(Shield) R(Overclock) T(Scan)', 10, 620);
+    }
+  }
+
+  /**
+   * Handle power-up input activation
+   */
+  private handlePowerUpInput(): void {
+    // Slow-Mo Surge - Q key
+    if (this.inputManager.isKeyJustPressed('KeyQ')) {
+      if (this.powerUpManager.activatePowerUp(PowerUpType.SLOW_MO_SURGE)) {
+        this.audioManager.playSound('powerup_activate');
+        logger.info('⏰ Slow-Mo Surge activated', null, 'Game');
+      }
+    }
+
+    // Magnetic Guide - W key
+    if (this.inputManager.isKeyJustPressed('KeyW')) {
+      if (this.powerUpManager.activatePowerUp(PowerUpType.MAGNETIC_GUIDE)) {
+        this.audioManager.playSound('powerup_activate');
+        logger.info('🧲 Magnetic Guide activated', null, 'Game');
+      }
+    }
+
+    // Circuit Patch (Shield) - E key
+    if (this.inputManager.isKeyJustPressed('KeyE')) {
+      if (this.powerUpManager.activatePowerUp(PowerUpType.CIRCUIT_PATCH)) {
+        this.audioManager.playSound('shield_activate');
+        logger.info('🛡️ Circuit Patch shield activated', null, 'Game');
+      }
+    }
+
+    // Overclock Boost - R key
+    if (this.inputManager.isKeyJustPressed('KeyR')) {
+      if (this.powerUpManager.activatePowerUp(PowerUpType.OVERCLOCK_BOOST)) {
+        this.audioManager.playSound('powerup_activate');
+        logger.info('⚡ Overclock Boost activated', null, 'Game');
+      }
+    }
+
+    // Scan Reveal - T key
+    if (this.inputManager.isKeyJustPressed('KeyT')) {
+      if (this.powerUpManager.activatePowerUp(PowerUpType.SCAN_REVEAL)) {
+        this.audioManager.playSound('powerup_activate');
+        logger.info('🔍 Scan Reveal activated', null, 'Game');
+      }
+    }
+  }
+
+  /**
+   * Place ball on the tilting bar
+   */
+  private placeBallOnBar(): void {
+    const ball = this.physicsEngine.getObjects().find(obj => obj.id === 'game-ball');
+    if (ball) {
+      // Position ball on the bar
+      ball.position.x = this.tiltingBar.position.x;
+      ball.position.y = this.tiltingBar.leftSideHeight - 20; // Slightly above the bar
+      ball.previousPosition.x = ball.position.x;
+      ball.previousPosition.y = ball.position.y;
+      ball.velocity.x = 0;
+      ball.velocity.y = 0;
+      logger.debug('🎯 Ball placed on tilting bar', null, 'Game');
+    }
+  }
+
+  /**
+   * Reset ball after completing a goal (no life loss)
+   */
+  private resetBallAfterGoal(): void {
+    logger.info('🎯 Goal completed - resetting ball without life loss', null, 'Game');
+
+    // Reset power-ups for new attempt
+    this.powerUpManager.initializeRun();
+
+    // Reset tilting bar to starting position
+    this.tiltingBar.reset();
+
+    // Reset ball to starting position on the bar
+    this.placeBallOnBar();
+  }
+
+  /**
+   * Get power-up manager
+   */
+  public getPowerUpManager(): PowerUpManager {
+    return this.powerUpManager;
+  }
+
   /**
    * Check if ball is currently animating into a hole
    */
   public getIsAnimatingHoleFall(): boolean {
     return this.isAnimatingHoleFall;
   }
+
+
 
   /**
    * Check collisions between ball and level elements
@@ -640,9 +924,14 @@ export class Game {
     const ballPosition = { x: ball.position.x, y: ball.position.y };
     const ballRadius = ball.radius;
 
-    // Check if ball reached the goal hole
+    // Check if ball reached the goal hole - now triggers hole animation
     if (this.currentLevel.checkGoalReached(ballPosition, ballRadius)) {
       this.handleGoalReached();
+      // Start hole animation for goal hole
+      const goalHole = this.currentLevel.getGoalHoleAtPosition(ballPosition);
+      if (goalHole) {
+        this.startHoleAnimation('game-ball', goalHole.position, true, false); // Mark as goal hole
+      }
       return;
     }
 
@@ -650,6 +939,7 @@ export class Game {
     const hitHole = this.currentLevel.checkHoleCollision(
       ballPosition,
       ballRadius,
+      'game-ball', // Pass ball ID to prevent re-entry
     );
     if (hitHole && !hitHole.isGoal) {
       this.handleHoleCollision(hitHole);
@@ -659,6 +949,8 @@ export class Game {
     if (this.currentLevel.checkBallFallOff(ballPosition, { x: 360, y: 640 })) {
       this.handleBallFallOff();
     }
+
+    // Check for power-up hole collisions (handled in handleHoleCollision)
   }
 
   /**
@@ -725,11 +1017,81 @@ export class Game {
   private handleHoleCollision(hole: Hole): void {
     logger.info(`🕳️ Ball fell into hole: ${hole.id}`, null, 'Game');
 
-    // Play falling sound
-    this.audioManager.playSound('zap'); // Use zap sound for falling into holes
+    // Check if this is a power-up hole
+    const isPowerUpHole = hole.powerUpType !== undefined;
+    if (isPowerUpHole) {
+      // Start saucer behavior instead of immediate collection
+      if (this.currentLevel) {
+        this.currentLevel.startSaucerBehavior(hole.id, 'game-ball', Date.now());
+        this.handlePowerUpHoleCollection(hole);
+      }
+    } else {
+      // Regular hole - play falling sound and start animation
+      this.audioManager.playSound('zap');
+      this.startHoleAnimation('game-ball', hole.position, false, false);
+    }
+  }
 
-    // Start hole animation instead of immediately resetting
-    this.startHoleAnimation('game-ball', hole.position);
+  /**
+   * Update saucer behavior and kick balls when ready
+   */
+  private updateSaucerBehavior(): void {
+    if (!this.currentLevel) return;
+
+    const kickData = this.currentLevel.updateSaucerBehavior(Date.now());
+    if (kickData) {
+      this.kickBallFromSaucer(kickData);
+    }
+  }
+
+  /**
+   * Kick ball out of saucer with physics
+   */
+  private kickBallFromSaucer(kickData: { ballId: string; direction: { x: number; y: number }; force: number; holeId: string }): void {
+    const ball = this.physicsEngine.getObjects().find(obj => obj.id === kickData.ballId);
+    if (!ball) return;
+
+    // Apply kick force to ball
+    const kickVelocity = {
+      x: kickData.direction.x * kickData.force,
+      y: kickData.direction.y * kickData.force
+    };
+
+    // Update ball physics
+    ball.previousPosition.x = ball.position.x - kickVelocity.x * 0.016; // 60fps
+    ball.previousPosition.y = ball.position.y - kickVelocity.y * 0.016;
+
+    // Play kick sound
+    this.audioManager.playSound('powerup_collect');
+
+    logger.info(`🚀 Ball kicked from saucer with force: ${kickData.force} from hole: ${kickData.holeId}`, null, 'Game');
+  }
+
+  /**
+   * Handle power-up hole collection
+   */
+  private handlePowerUpHoleCollection(hole: Hole): void {
+    if (!hole.powerUpType) return;
+
+    logger.info(`🎁 Power-up collected from hole: ${hole.powerUpType}`, null, 'Game');
+
+    // Add charge to the power-up
+    this.powerUpManager.addCharges(hole.powerUpType, 1);
+
+    // Don't deactivate the hole immediately - let saucer handle it
+    // The hole will be deactivated after the ball is kicked out
+
+    // Play collection sound
+    this.audioManager.playSound('powerup_collect');
+
+    // Record collection event
+    this.statsManager.recordEvent({
+      type: 'powerup_collected',
+      timestamp: Date.now(),
+      data: { powerUpType: hole.powerUpType, source: 'hole' },
+    });
+
+    logger.info(`⚡ Added charge to ${hole.powerUpType} from power-up hole`, null, 'Game');
   }
 
   /**
@@ -737,6 +1099,16 @@ export class Game {
    */
   private handleBallFallOff(): void {
     logger.warn('💀 Ball fell off screen!', null, 'Game');
+
+    // Check if shield should be used
+    if (this.powerUpManager.useShield()) {
+      logger.info('🛡️ Shield used to prevent ball loss!', null, 'Game');
+      this.audioManager.playSound('shield_break');
+      
+      // Reset ball to starting position on the bar
+      this.placeBallOnBar();
+      return;
+    }
 
     // Record ball lost event
     this.statsManager.recordEvent({
@@ -753,11 +1125,14 @@ export class Game {
       this.gameState.updateStateData({ lives: currentLives - 1 });
       logger.info(`💔 Lives remaining: ${currentLives - 1}`, null, 'Game');
 
-      // Reset tilting bar to starting position
-      this.tiltingBar.reset();
+          // Reset power-ups for new game
+    this.powerUpManager.initializeRun();
 
-      // Reset ball to starting position on the bar
-      this.placeBallOnBar();
+    // Reset tilting bar to starting position
+    this.tiltingBar.reset();
+
+    // Reset ball to starting position on the bar
+    this.placeBallOnBar();
     } else {
       this.handleGameOver();
     }
@@ -842,7 +1217,7 @@ export class Game {
       // Reset ball to starting position on the bar
       this.placeBallOnBar();
 
-      logger.info(`🎯 Level ${levelId} loaded and started`, null, 'Game');
+            logger.info(`🎯 Level ${levelId} loaded and started`, null, 'Game');
     }
   }
 
@@ -983,6 +1358,7 @@ export class Game {
     if (this.currentLevel) {
       this.currentLevel.start();
       this.levelCompletionHandled = false;
+      
       logger.info('🎯 Level 1 loaded and started', null, 'Game');
     }
 
@@ -1055,11 +1431,13 @@ export class Game {
   private startHoleAnimation(
     ballId: string,
     holePosition: { x: number; y: number },
+    isGoalHole: boolean = false,
+    isPowerUpHole: boolean = false,
   ): void {
     const ball = this.physicsEngine.getObjects().find(obj => obj.id === ballId);
     if (!ball) return;
 
-    logger.debug(`🎬 Starting hole animation for ball: ${ballId}`, null, 'Game');
+    logger.debug(`🎬 Starting hole animation for ball: ${ballId} (goal: ${isGoalHole}, power-up: ${isPowerUpHole})`, null, 'Game');
 
     this.isAnimatingHoleFall = true;
     this.holeAnimationState = {
@@ -1070,6 +1448,8 @@ export class Game {
       startPosition: { x: ball.position.x, y: ball.position.y },
       scale: 1,
       opacity: 1,
+      isGoalHole: isGoalHole,
+      isPowerUpHole: isPowerUpHole,
     };
   }
 
@@ -1077,13 +1457,26 @@ export class Game {
    * Complete hole animation and reset ball
    */
   private completeHoleAnimation(): void {
-    logger.debug('🎬 Hole animation complete', null, 'Game');
+    if (!this.holeAnimationState) return;
+
+    const isGoalHole = this.holeAnimationState.isGoalHole;
+    const isPowerUpHole = this.holeAnimationState.isPowerUpHole;
+    logger.debug(`🎬 Hole animation complete (goal: ${isGoalHole}, power-up: ${isPowerUpHole})`, null, 'Game');
 
     this.isAnimatingHoleFall = false;
     this.holeAnimationState = null;
 
-    // Now perform the actual ball reset
-    this.handleBallFallOff();
+    // Handle differently based on hole type
+    if (isGoalHole) {
+      // Goal hole - just reset ball without losing life
+      this.resetBallAfterGoal();
+    } else if (isPowerUpHole) {
+      // Power-up hole - just reset ball without losing life (power-up already collected)
+      this.resetBallAfterGoal();
+    } else {
+      // Regular hole - lose life and reset
+      this.handleBallFallOff();
+    }
   }
 
   /**
@@ -1204,8 +1597,8 @@ export class Game {
    */
   private async playMenuMusic(): Promise<void> {
     try {
-      await this.audioManager.fadeToMusic('Engage_II.mp3', 1.0);
-      logger.debug('🎵 Menu music started', null, 'Game');
+      await this.audioManager.fadeToMusic('02-Delorean_Time.mp3', 1.0);
+      logger.debug('🎵 Menu music started (02-Delorean_Time.mp3)', null, 'Game');
     } catch (error) {
       logger.error('❌ Error playing menu music:', error, 'Game');
     }
@@ -1263,6 +1656,8 @@ export class Game {
       'Dead_Space.mp3',
       'atlas_01.json',
       'atlas_01.png',
+      'powerup_atlas_01.json',
+      'powerup_atlas_01.png',
     ];
 
     this.loadedAssets = 0;
@@ -1343,6 +1738,8 @@ export class Game {
       // Small delay to show progress
       await this.delay(200);
     }
+    
+    logger.info('✅ Sprite assets loading simulation completed', null, 'Game');
   }
 
   /**

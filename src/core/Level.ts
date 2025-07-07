@@ -3,7 +3,14 @@
 
 import { Vector2 } from '../utils/MathUtils';
 import { logger } from '../utils/Logger';
-import { PowerUpType } from './PowerUpManager';
+// Define PowerUpType locally to avoid import issues
+export enum PowerUpType {
+  SLOW_MO_SURGE = 'slow_mo_surge',
+  MAGNETIC_GUIDE = 'magnetic_guide',
+  CIRCUIT_PATCH = 'circuit_patch',
+  OVERCLOCK_BOOST = 'overclock_boost',
+  SCAN_REVEAL = 'scan_reveal',
+}
 
 export interface Hole {
   id: string;

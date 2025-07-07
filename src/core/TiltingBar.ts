@@ -24,6 +24,7 @@ export class TiltingBar {
   public maxRotation: number;
   public rotationSpeed: number;
   public friction: number;
+  private speedMultiplier: number = 1.0; // For power-up effects
 
   // Visual properties
   public color: string = '#00f0ff'; // Electric Blue
@@ -54,7 +55,7 @@ export class TiltingBar {
    */
   public moveLeftSide(input: number): void {
     if (input !== 0) {
-      this.leftSideHeight -= input * this.sideSpeed * (1 / 60); // Move up (negative) or down (positive)
+      this.leftSideHeight -= input * this.sideSpeed * this.speedMultiplier * (1 / 60); // Move up (negative) or down (positive)
       this.leftSideHeight = Math.max(
         this.minSideHeight,
         Math.min(this.maxSideHeight, this.leftSideHeight),
@@ -67,7 +68,7 @@ export class TiltingBar {
    */
   public moveRightSide(input: number): void {
     if (input !== 0) {
-      this.rightSideHeight -= input * this.sideSpeed * (1 / 60); // Move up (negative) or down (positive)
+      this.rightSideHeight -= input * this.sideSpeed * this.speedMultiplier * (1 / 60); // Move up (negative) or down (positive)
       this.rightSideHeight = Math.max(
         this.minSideHeight,
         Math.min(this.maxSideHeight, this.rightSideHeight),
@@ -230,6 +231,20 @@ export class TiltingBar {
   }
 
   /**
+   * Set speed multiplier for power-up effects
+   */
+  public setSpeedMultiplier(multiplier: number): void {
+    this.speedMultiplier = multiplier;
+  }
+
+  /**
+   * Get current speed multiplier
+   */
+  public getSpeedMultiplier(): number {
+    return this.speedMultiplier;
+  }
+
+  /**
    * Reset the tilting bar to its starting position (both sides at bottom)
    */
   public reset(): void {
@@ -237,6 +252,7 @@ export class TiltingBar {
     this.rightSideHeight = this.maxSideHeight; // Reset to bottom position (590)
     this.rotation = 0; // Reset rotation to horizontal
     this.targetRotation = 0; // Reset target rotation
+    this.speedMultiplier = 1.0; // Reset speed multiplier
     logger.info('🔄 Tilting bar reset to starting position', null, 'TiltingBar');
   }
 }

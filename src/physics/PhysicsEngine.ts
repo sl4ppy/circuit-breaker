@@ -208,8 +208,8 @@ export class PhysicsEngine {
    * Main physics update (optimized for performance)
    */
   public update(frameTime: number): void {
-    // Simple direct update instead of fixed timestep for better performance
-    const dt = Math.min(frameTime, 1 / 30); // Cap at 30fps minimum
+    // Convert milliseconds to seconds and apply time scaling
+    const dt = frameTime / 1000; // Convert to seconds
     this.simulateStep(dt);
 
     // Update backward compatibility properties
@@ -255,6 +255,24 @@ export class PhysicsEngine {
     for (const obj of this.objects) {
       if (obj.isStatic) continue;
 
+      // Check if ball is held (e.g., in a saucer)
+      if (this.isBallHeld(obj.id)) {
+        // Get target position for held ball
+        const targetPos = this.getHeldBallTarget(obj.id);
+        if (targetPos) {
+          // Smoothly move ball to target position
+          const smoothingFactor = 0.1; // Smooth movement
+          obj.position.x += (targetPos.x - obj.position.x) * smoothingFactor;
+          obj.position.y += (targetPos.y - obj.position.y) * smoothingFactor;
+        }
+        
+        // Keep ball in place by maintaining consistent previous position
+        // This prevents jittery movement when physics tries to move the ball
+        obj.previousPosition.x = obj.position.x;
+        obj.previousPosition.y = obj.position.y;
+        continue;
+      }
+
       // Calculate current velocity
       const velX = obj.position.x - obj.previousPosition.x;
       const velY = obj.position.y - obj.previousPosition.y;
@@ -264,8 +282,10 @@ export class PhysicsEngine {
       obj.previousPosition.y = obj.position.y;
 
       // Update position with velocity and gravity
-      obj.position.x += velX * this.airResistance + this.gravity.x * dt * dt;
-      obj.position.y += velY * this.airResistance + this.gravity.y * dt * dt;
+      const gravityX = this.gravity.x * dt * dt;
+      const gravityY = this.gravity.y * dt * dt;
+      obj.position.x += velX * this.airResistance + gravityX;
+      obj.position.y += velY * this.airResistance + gravityY;
     }
   }
 
@@ -530,6 +550,9 @@ export class PhysicsEngine {
     for (const obj of this.objects) {
       if (obj.isStatic) continue;
 
+      // Skip balls that are held (e.g., in saucers)
+      if (this.isBallHeld(obj.id)) continue;
+
       const endpoints = this.tiltingBar.getEndpoints();
       const closestPointOnCenterLine = this.getClosestPointOnLineSegment(
         obj.position,
@@ -712,6 +735,9 @@ export class PhysicsEngine {
     for (const obj of this.objects) {
       if (obj.isStatic) continue;
 
+      // Skip balls that are held (e.g., in saucers)
+      if (this.isBallHeld(obj.id)) continue;
+
       // Floor collision
       if (obj.position.y + obj.radius > this.bounds.height) {
         obj.position.y = this.bounds.height - obj.radius;
@@ -760,6 +786,22 @@ export class PhysicsEngine {
         }
       }
     }
+  }
+
+  /**
+   * Check if a ball should be held in place (e.g., in a saucer)
+   */
+  public isBallHeld(_ballId: string): boolean {
+    // This will be called from the Game class to check saucer state
+    return false; // Default implementation - Game class will override this
+  }
+
+  /**
+   * Get the target position for a held ball (e.g., saucer center)
+   */
+  public getHeldBallTarget(_ballId: string): { x: number; y: number } | null {
+    // This will be called from the Game class to get saucer position
+    return null; // Default implementation - Game class will override this
   }
 
   /**

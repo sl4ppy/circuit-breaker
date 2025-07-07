@@ -506,7 +506,7 @@ export class Renderer {
         'OVERCLOCK_BOOST': { active: '#ff6600', dark: '#441100', darker: '#220000' }, // Orange
         'SCAN_REVEAL': { active: '#ffff00', dark: '#444400', darker: '#222200' }, // Yellow
       };
-      const colors = powerUpColors[hole.powerUpType as keyof typeof powerUpColors] || powerUpColors['SLOW_MO_SURGE'];
+      const colors = powerUpColors[hole.powerUpType as unknown as keyof typeof powerUpColors] || powerUpColors['SLOW_MO_SURGE'];
       activeColor = colors.active;
       darkColor = colors.dark;
       darkerColor = colors.darker;
@@ -533,7 +533,7 @@ export class Renderer {
           'OVERCLOCK_BOOST': 'cross',
           'SCAN_REVEAL': 'eye',
         };
-        spriteName = powerUpSprites[hole.powerUpType as keyof typeof powerUpSprites] || 'hourglass';
+        spriteName = powerUpSprites[hole.powerUpType as unknown as keyof typeof powerUpSprites] || 'hourglass';
       } else {
         spriteName = 'ball_whole_normal';
       }
@@ -739,7 +739,7 @@ export class Renderer {
           'SCAN_REVEAL': '🔍',
         };
         
-        const icon = powerUpIcons[hole.powerUpType as keyof typeof powerUpIcons] || '?';
+        const icon = powerUpIcons[hole.powerUpType as unknown as keyof typeof powerUpIcons] || '?';
         
         // Draw icon with glow effect
         this.ctx.shadowColor = activeColor;

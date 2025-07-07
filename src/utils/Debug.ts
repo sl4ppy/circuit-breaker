@@ -24,7 +24,7 @@ export class Debug {
     const timestamp = new Date().toISOString();
     const logMessage = `[${timestamp}] ${message}`;
 
-    logger.debug(logMessage, args.length > 0 ? args : null, 'Debug');
+    logger.info(logMessage, args.length > 0 ? args : null, 'Debug');
     this.addToLogs(logMessage);
   }
 

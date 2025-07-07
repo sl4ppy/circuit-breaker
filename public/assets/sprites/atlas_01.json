@@ -7,7 +7,7 @@
   },
 
   "meta": {
-    "image": "sprite_atlas.png",
+    "image": "atlas_01.png",
     "size": { "w": 512, "h": 512 },
     "scale": 1
   }

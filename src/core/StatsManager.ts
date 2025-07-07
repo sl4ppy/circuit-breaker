@@ -90,7 +90,7 @@ export interface GameStats {
 export interface StatsEvent {
   type: 'game_start' | 'game_complete' | 'level_start' | 'level_complete' | 
         'goal_reached' | 'ball_lost' | 'death' | 'pause' | 'resume' | 
-        'session_start' | 'session_end' | 'fps_update' | 'achievement_unlocked';
+        'session_start' | 'session_end' | 'fps_update' | 'achievement_unlocked' | 'powerup_collected';
   timestamp: number;
   data?: any;
 }

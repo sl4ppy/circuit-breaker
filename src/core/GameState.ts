@@ -24,6 +24,15 @@ export interface GameStateData {
   isPaused: boolean;
   isGameOver: boolean;
   debugMode: boolean;
+  // Power-up related state
+  activePowerUps: string[];
+  powerUpEffects: {
+    timeScale?: number;
+    magneticForce?: number;
+    shieldActive?: boolean;
+    barSpeedMultiplier?: number;
+    scanActive?: boolean;
+  };
 }
 
 export class GameState {
@@ -35,6 +44,9 @@ export class GameState {
     isPaused: false,
     isGameOver: false,
     debugMode: false,
+    // Power-up related state
+    activePowerUps: [],
+    powerUpEffects: {},
   };
 
   constructor() {
@@ -180,6 +192,9 @@ export class GameState {
       isPaused: false,
       isGameOver: false,
       debugMode: false,
+      // Power-up related state
+      activePowerUps: [],
+      powerUpEffects: {},
     };
     logger.info('🔄 Game state reset', null, 'GameState');
   }

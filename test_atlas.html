@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atlas Test</title>
+    <style>
+        body {
+            background: #1a1a1a;
+            color: #ffffff;
+            font-family: monospace;
+            padding: 20px;
+        }
+        canvas {
+            border: 1px solid #333;
+            margin: 10px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 10px;
+            border: 1px solid #444;
+        }
+    </style>
+</head>
+<body>
+    <h1>Sprite Atlas Test</h1>
+    
+    <div class="test-section">
+        <h2>Main Atlas Test</h2>
+        <canvas id="mainAtlasCanvas" width="400" height="200"></canvas>
+    </div>
+    
+    <div class="test-section">
+        <h2>Power-up Atlas Test</h2>
+        <canvas id="powerupAtlasCanvas" width="400" height="200"></canvas>
+    </div>
+    
+    <div class="test-section">
+        <h2>Console Log</h2>
+        <div id="log" style="background: #000; padding: 10px; height: 200px; overflow-y: scroll;"></div>
+    </div>
+
+    <script type="module">
+        // Simple logging function
+        function log(message) {
+            console.log(message);
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML += message + '<br>';
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Test sprite atlas loading
+        async function testAtlasLoading() {
+            log('🔄 Starting atlas test...');
+            
+            try {
+                // Test main atlas
+                log('📄 Testing main atlas JSON...');
+                const mainJsonResponse = await fetch('./assets/sprites/atlas_01.json');
+                if (!mainJsonResponse.ok) {
+                    throw new Error(`Main atlas JSON failed: ${mainJsonResponse.status}`);
+                }
+                const mainAtlasData = await mainJsonResponse.json();
+                log(`✅ Main atlas JSON loaded with ${Object.keys(mainAtlasData.frames).length} sprites`);
+                log(`📋 Main atlas sprites: ${Object.keys(mainAtlasData.frames).join(', ')}`);
+                
+                // Test main atlas image
+                log('🖼️ Testing main atlas image...');
+                const mainImage = new Image();
+                mainImage.src = './assets/sprites/atlas_01.png';
+                
+                await new Promise((resolve, reject) => {
+                    mainImage.onload = () => {
+                        log('✅ Main atlas image loaded successfully');
+                        resolve();
+                    };
+                    mainImage.onerror = (error) => {
+                        log(`❌ Main atlas image failed: ${error}`);
+                        reject(error);
+                    };
+                });
+                
+                // Test power-up atlas
+                log('📄 Testing power-up atlas JSON...');
+                const powerupJsonResponse = await fetch('./assets/sprites/powerup_atlas_01.json');
+                if (!powerupJsonResponse.ok) {
+                    throw new Error(`Power-up atlas JSON failed: ${powerupJsonResponse.status}`);
+                }
+                const powerupAtlasData = await powerupJsonResponse.json();
+                log(`✅ Power-up atlas JSON loaded with ${Object.keys(powerupAtlasData.frames).length} sprites`);
+                log(`📋 Power-up atlas sprites: ${Object.keys(powerupAtlasData.frames).join(', ')}`);
+                
+                // Test power-up atlas image
+                log('🖼️ Testing power-up atlas image...');
+                const powerupImage = new Image();
+                powerupImage.src = './assets/sprites/powerup_atlas_01.png';
+                
+                await new Promise((resolve, reject) => {
+                    powerupImage.onload = () => {
+                        log('✅ Power-up atlas image loaded successfully');
+                        resolve();
+                    };
+                    powerupImage.onerror = (error) => {
+                        log(`❌ Power-up atlas image failed: ${error}`);
+                        reject(error);
+                    };
+                });
+                
+                // Test drawing some sprites
+                log('🎨 Testing sprite drawing...');
+                
+                // Draw main atlas sprites
+                const mainCanvas = document.getElementById('mainAtlasCanvas');
+                const mainCtx = mainCanvas.getContext('2d');
+                
+                if (mainCtx) {
+                    mainCtx.fillStyle = '#333';
+                    mainCtx.fillRect(0, 0, 400, 200);
+                    
+                    // Draw ball_normal
+                    const ballFrame = mainAtlasData.frames['ball_normal'];
+                    if (ballFrame) {
+                        mainCtx.drawImage(
+                            mainImage,
+                            ballFrame.x, ballFrame.y, ballFrame.w, ballFrame.h,
+                            10, 10, ballFrame.w * 2, ballFrame.h * 2
+                        );
+                        log('✅ Drew ball_normal sprite');
+                    }
+                    
+                    // Draw bar_normal
+                    const barFrame = mainAtlasData.frames['bar_normal'];
+                    if (barFrame) {
+                        mainCtx.drawImage(
+                            mainImage,
+                            barFrame.x, barFrame.y, barFrame.w, barFrame.h,
+                            150, 10, barFrame.w, barFrame.h
+                        );
+                        log('✅ Drew bar_normal sprite');
+                    }
+                }
+                
+                // Draw power-up atlas sprites
+                const powerupCanvas = document.getElementById('powerupAtlasCanvas');
+                const powerupCtx = powerupCanvas.getContext('2d');
+                
+                if (powerupCtx) {
+                    powerupCtx.fillStyle = '#333';
+                    powerupCtx.fillRect(0, 0, 400, 200);
+                    
+                    // Draw hourglass
+                    const hourglassFrame = powerupAtlasData.frames['hourglass'];
+                    if (hourglassFrame) {
+                        powerupCtx.drawImage(
+                            powerupImage,
+                            hourglassFrame.x, hourglassFrame.y, hourglassFrame.w, hourglassFrame.h,
+                            10, 10, hourglassFrame.w, hourglassFrame.h
+                        );
+                        log('✅ Drew hourglass sprite');
+                    }
+                    
+                    // Draw magnet
+                    const magnetFrame = powerupAtlasData.frames['magnet'];
+                    if (magnetFrame) {
+                        powerupCtx.drawImage(
+                            powerupImage,
+                            magnetFrame.x, magnetFrame.y, magnetFrame.w, magnetFrame.h,
+                            150, 10, magnetFrame.w, magnetFrame.h
+                        );
+                        log('✅ Drew magnet sprite');
+                    }
+                }
+                
+                log('🎉 Atlas test completed successfully!');
+                
+            } catch (error) {
+                log(`❌ Atlas test failed: ${error.message}`);
+                console.error('Atlas test error:', error);
+            }
+        }
+        
+        // Run the test when page loads
+        window.addEventListener('load', testAtlasLoading);
+    </script>
+</body>
+</html> 

@@ -21,8 +21,7 @@ export interface AtlasData {
 
 export class SpriteAtlas {
   private static instance: SpriteAtlas;
-  private atlasImage: HTMLImageElement | null = null;
-  private atlasData: AtlasData | null = null;
+  private atlases: Map<string, { image: HTMLImageElement; data: AtlasData }> = new Map();
   private isLoaded: boolean = false;
   private offscreenCanvases: Map<string, HTMLCanvasElement> = new Map();
 
@@ -40,44 +39,86 @@ export class SpriteAtlas {
    */
   public async load(): Promise<void> {
     try {
-      // Load atlas JSON data
-      const jsonResponse = await fetch('./assets/sprites/atlas_01.json');
-      if (!jsonResponse.ok) {
-        throw new Error(`Failed to load atlas JSON: ${jsonResponse.status}`);
-      }
-      this.atlasData = await jsonResponse.json();
-
-      // Load atlas image
-      this.atlasImage = new Image();
-      this.atlasImage.src = './assets/sprites/atlas_01.png';
-
-      await new Promise<void>((resolve, reject) => {
-        if (this.atlasImage) {
-          this.atlasImage.onload = () => resolve();
-          this.atlasImage.onerror = reject;
-        } else {
-          reject(new Error('Atlas image not initialized'));
-        }
-      });
+      Debug.log('🚀 Starting sprite atlas loading process...');
+      
+      // Load main atlas
+      await this.loadAtlas('main', './assets/sprites/atlas_01.json', './assets/sprites/atlas_01.png');
+      
+      // Load power-up atlas
+      await this.loadAtlas('powerup', './assets/sprites/powerup_atlas_01.json', './assets/sprites/powerup_atlas_01.png');
 
       this.isLoaded = true;
+      
+      let totalSprites = 0;
+      this.atlases.forEach((atlas, name) => {
+        const spriteCount = Object.keys(atlas.data.frames).length;
+        totalSprites += spriteCount;
+        Debug.log(`📊 Atlas '${name}' contains ${spriteCount} sprites`);
+      });
+      
       Debug.log(
-        '🎨 Sprite atlas loaded successfully with',
-        Object.keys(this.atlasData?.frames || {}).length,
-        'sprites',
+        '🎨 All sprite atlases loaded successfully with',
+        totalSprites,
+        'total sprites',
       );
     } catch (error) {
-      Debug.log('❌ Failed to load sprite atlas:', error);
+      Debug.log('❌ Failed to load sprite atlases:', error);
       this.isLoaded = false;
     }
   }
 
   /**
+   * Load a specific atlas
+   */
+  private async loadAtlas(name: string, jsonPath: string, imagePath: string): Promise<void> {
+    Debug.log(`🔄 Loading ${name} atlas from ${jsonPath} and ${imagePath}`);
+    
+    // Load atlas JSON data
+    const jsonResponse = await fetch(jsonPath);
+    if (!jsonResponse.ok) {
+      throw new Error(`Failed to load ${name} atlas JSON: ${jsonResponse.status}`);
+    }
+    const atlasData = await jsonResponse.json();
+    Debug.log(`📄 ${name} atlas JSON loaded with ${Object.keys(atlasData.frames).length} sprites`);
+
+    // Load atlas image
+    const atlasImage = new Image();
+    atlasImage.src = imagePath;
+
+    await new Promise<void>((resolve, reject) => {
+      atlasImage.onload = () => {
+        Debug.log(`🖼️ ${name} atlas image loaded successfully`);
+        resolve();
+      };
+      atlasImage.onerror = (error) => {
+        Debug.log(`❌ Failed to load ${name} atlas image:`, error);
+        reject(error);
+      };
+    });
+
+    this.atlases.set(name, { image: atlasImage, data: atlasData });
+    
+    Debug.log(
+      `🎨 ${name} atlas loaded with`,
+      Object.keys(atlasData.frames).length,
+      'sprites:',
+      Object.keys(atlasData.frames).join(', ')
+    );
+  }
+
+  /**
    * Get a sprite frame definition by name
    */
-  public getFrame(spriteName: string): SpriteFrame | null {
-    if (!this.atlasData) return null;
-    return this.atlasData.frames[spriteName] || null;
+  public getFrame(spriteName: string): { frame: SpriteFrame; atlas: string } | null {
+    // Search through all atlases
+    for (const [atlasName, atlas] of this.atlases) {
+      if (atlas.data.frames[spriteName]) {
+        Debug.log(`✅ Found sprite ${spriteName} in atlas ${atlasName}`);
+        return { frame: atlas.data.frames[spriteName], atlas: atlasName };
+      }
+    }
+    Debug.log(`❌ Sprite ${spriteName} not found in any atlas`);
+    return null;
   }
 
   /**
@@ -90,27 +131,33 @@ export class SpriteAtlas {
     y: number,
     scale: number = 1,
   ): boolean {
-    if (!this.isLoaded || !this.atlasImage || !this.atlasData) {
-      Debug.log(`⚠️ Cannot draw sprite ${spriteName}: not loaded`);
+    if (!this.isLoaded) {
+      Debug.log(`⚠️ Cannot draw sprite ${spriteName}: atlases not loaded`);
       return false;
     }
 
-    const frame = this.getFrame(spriteName);
-    if (!frame) {
+    const frameData = this.getFrame(spriteName);
+    if (!frameData) {
       Debug.log(`⚠️ Sprite not found: ${spriteName}`);
       return false;
     }
 
+    const atlas = this.atlases.get(frameData.atlas);
+    if (!atlas) {
+      Debug.log(`⚠️ Atlas not found: ${frameData.atlas}`);
+      return false;
+    }
+
     ctx.drawImage(
-      this.atlasImage,
-      frame.x,
-      frame.y,
-      frame.w,
-      frame.h,
+      atlas.image,
+      frameData.frame.x,
+      frameData.frame.y,
+      frameData.frame.w,
+      frameData.frame.h,
       x,
       y,
-      frame.w * scale,
-      frame.h * scale,
+      frameData.frame.w * scale,
+      frameData.frame.h * scale,
     );
 
     return true;
@@ -133,32 +180,35 @@ export class SpriteAtlas {
       }
     }
 
-    if (!this.isLoaded || !this.atlasImage || !this.atlasData) {
+    if (!this.isLoaded) {
       return null;
     }
 
-    const frame = this.getFrame(spriteName);
-    if (!frame) return null;
+    const frameData = this.getFrame(spriteName);
+    if (!frameData) return null;
+
+    const atlas = this.atlases.get(frameData.atlas);
+    if (!atlas) return null;
 
     // Create offscreen canvas
     const canvas = document.createElement('canvas');
-    canvas.width = frame.w * scale;
-    canvas.height = frame.h * scale;
+    canvas.width = frameData.frame.w * scale;
+    canvas.height = frameData.frame.h * scale;
 
     const ctx = canvas.getContext('2d');
     if (!ctx) return null;
 
     // Draw sprite to offscreen canvas
     ctx.drawImage(
-      this.atlasImage,
-      frame.x,
-      frame.y,
-      frame.w,
-      frame.h,
+      atlas.image,
+      frameData.frame.x,
+      frameData.frame.y,
+      frameData.frame.w,
+      frameData.frame.h,
       0,
       0,
-      frame.w * scale,
-      frame.h * scale,
+      frameData.frame.w * scale,
+      frameData.frame.h * scale,
     );
 
     // Cache and return
@@ -170,8 +220,11 @@ export class SpriteAtlas {
    * Get all available sprite names
    */
   public getSpriteNames(): string[] {
-    if (!this.atlasData) return [];
-    return Object.keys(this.atlasData.frames);
+    const allSprites: string[] = [];
+    this.atlases.forEach((atlas) => {
+      allSprites.push(...Object.keys(atlas.data.frames));
+    });
+    return allSprites;
   }
 
   /**
@@ -182,13 +235,14 @@ export class SpriteAtlas {
   }
 
   /**
-   * Get atlas dimensions
+   * Get atlas dimensions for a specific atlas
    */
-  public getAtlasDimensions(): { width: number; height: number } | null {
-    if (!this.atlasData) return null;
+  public getAtlasDimensions(atlasName: string = 'main'): { width: number; height: number } | null {
+    const atlas = this.atlases.get(atlasName);
+    if (!atlas) return null;
     return {
-      width: this.atlasData.meta.size.w,
-      height: this.atlasData.meta.size.h,
+      width: atlas.data.meta.size.w,
+      height: atlas.data.meta.size.h,
     };
   }
 

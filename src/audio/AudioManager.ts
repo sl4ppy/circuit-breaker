@@ -186,6 +186,46 @@ export class AudioManager {
       pitch: 1.0,
     });
 
+    // Power-up collect sound - satisfying chime
+    const powerupCollectBuffer = this.createPowerupCollectSound();
+    this.soundEffects.set('powerup_collect', {
+      id: 'powerup_collect',
+      buffer: powerupCollectBuffer,
+      volume: 0.7,
+      loop: false,
+      pitch: 1.0,
+    });
+
+    // Power-up activate sound - electronic buzz
+    const powerupActivateBuffer = this.createPowerupActivateSound();
+    this.soundEffects.set('powerup_activate', {
+      id: 'powerup_activate',
+      buffer: powerupActivateBuffer,
+      volume: 0.6,
+      loop: false,
+      pitch: 1.0,
+    });
+
+    // Shield break sound - glass shatter
+    const shieldBreakBuffer = this.createShieldBreakSound();
+    this.soundEffects.set('shield_break', {
+      id: 'shield_break',
+      buffer: shieldBreakBuffer,
+      volume: 0.8,
+      loop: false,
+      pitch: 1.0,
+    });
+
+    // Shield activate sound - protective hum
+    const shieldActivateBuffer = this.createShieldActivateSound();
+    this.soundEffects.set('shield_activate', {
+      id: 'shield_activate',
+      buffer: shieldActivateBuffer,
+      volume: 0.6,
+      loop: false,
+      pitch: 1.0,
+    });
+
     logger.info(
       `🎵 Created ${this.soundEffects.size} procedural sound effects`,
       null,
@@ -427,6 +467,116 @@ export class AudioManager {
       const distortion = Math.sin(2 * Math.PI * 100 * t) * 0.2;
 
       data[i] = (tone + noise + distortion) * envelope;
+    }
+
+    return buffer;
+  }
+
+  /**
+   * Create power-up collect sound
+   */
+  private createPowerupCollectSound(): AudioBuffer | null {
+    if (!this.audioContext) return null;
+
+    const sampleRate = this.audioContext.sampleRate;
+    const duration = 0.4;
+    const length = sampleRate * duration;
+    const buffer = this.audioContext.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < length; i++) {
+      const t = i / sampleRate;
+      const envelope = Math.exp(-t * 5);
+
+      // Pleasant ascending chime
+      const freq = 800 + t * 400; // Ascending frequency
+      const chime1 = Math.sin(2 * Math.PI * freq * t) * 0.4;
+      const chime2 = Math.sin(2 * Math.PI * (freq * 1.5) * t) * 0.2;
+      const sparkle = Math.sin(2 * Math.PI * 2000 * t) * 0.1;
+
+      data[i] = (chime1 + chime2 + sparkle) * envelope;
+    }
+
+    return buffer;
+  }
+
+  /**
+   * Create power-up activate sound
+   */
+  private createPowerupActivateSound(): AudioBuffer | null {
+    if (!this.audioContext) return null;
+
+    const sampleRate = this.audioContext.sampleRate;
+    const duration = 0.3;
+    const length = sampleRate * duration;
+    const buffer = this.audioContext.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < length; i++) {
+      const t = i / sampleRate;
+      const envelope = Math.exp(-t * 8);
+
+      // Electronic activation buzz
+      const buzz = Math.sin(2 * Math.PI * 600 * t) * 0.3;
+      const crackle = Math.sin(2 * Math.PI * 1800 * t) * 0.2;
+      const noise = (Math.random() - 0.5) * 0.2;
+
+      data[i] = (buzz + crackle + noise) * envelope;
+    }
+
+    return buffer;
+  }
+
+  /**
+   * Create shield break sound
+   */
+  private createShieldBreakSound(): AudioBuffer | null {
+    if (!this.audioContext) return null;
+
+    const sampleRate = this.audioContext.sampleRate;
+    const duration = 0.5;
+    const length = sampleRate * duration;
+    const buffer = this.audioContext.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < length; i++) {
+      const t = i / sampleRate;
+      const envelope = Math.exp(-t * 4);
+
+      // Glass shatter effect
+      const glass = Math.sin(2 * Math.PI * 1200 * t) * 0.3;
+      const shatter = Math.sin(2 * Math.PI * 800 * t) * 0.2;
+      const noise = (Math.random() - 0.5) * 0.4;
+      const echo = Math.sin(2 * Math.PI * 400 * t) * 0.1;
+
+      data[i] = (glass + shatter + noise + echo) * envelope;
+    }
+
+    return buffer;
+  }
+
+  /**
+   * Create shield activate sound
+   */
+  private createShieldActivateSound(): AudioBuffer | null {
+    if (!this.audioContext) return null;
+
+    const sampleRate = this.audioContext.sampleRate;
+    const duration = 0.6;
+    const length = sampleRate * duration;
+    const buffer = this.audioContext.createBuffer(1, length, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < length; i++) {
+      const t = i / sampleRate;
+      const envelope = Math.exp(-t * 3);
+
+      // Protective shield hum
+      const hum = Math.sin(2 * Math.PI * 200 * t) * 0.3;
+      const resonance = Math.sin(2 * Math.PI * 400 * t) * 0.2;
+      const protection = Math.sin(2 * Math.PI * 100 * t) * 0.1;
+
+      data[i] = (hum + resonance + protection) * envelope;
     }
 
     return buffer;

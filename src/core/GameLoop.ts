@@ -69,8 +69,18 @@ export class GameLoop {
     // Update FPS tracking
     this.updateFPSTracking(currentTime);
 
-    // Accumulate time
-    this.accumulator += deltaTime;
+    // Apply power-up time scaling to the entire game loop
+    let scaledDeltaTime = deltaTime;
+    if (this.game && this.game.getPowerUpManager) {
+      const powerUpEffects = this.game.getPowerUpManager().getPowerUpEffects();
+      if (powerUpEffects.timeScale) {
+        scaledDeltaTime = deltaTime * powerUpEffects.timeScale;
+        console.log(`⏰ GameLoop: timeScale=${powerUpEffects.timeScale}, deltaTime=${deltaTime}ms -> ${scaledDeltaTime}ms`);
+      }
+    }
+
+    // Accumulate time with scaling
+    this.accumulator += scaledDeltaTime;
 
     // Update with fixed timestep
     while (this.accumulator >= this.timestep) {
