@@ -195,4 +195,18 @@ export class MathUtils {
     
     return Math.pow(2, -10 * t) * Math.sin((t - s) * (2 * Math.PI) / p) + 1;
   }
+
+  /**
+   * Cubic ease-in (accelerating from zero velocity)
+   */
+  public static easeInCubic(t: number): number {
+    return t * t * t;
+  }
+
+  /**
+   * Cubic ease-out (decelerating to zero velocity)
+   */
+  public static easeOutCubic(t: number): number {
+    return 1 - Math.pow(1 - t, 3);
+  }
 }

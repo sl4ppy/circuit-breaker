@@ -13,6 +13,20 @@ export interface Hole {
   isActive: boolean;
   powerUpType?: PowerUpType; // Optional power-up type for power-up holes
   
+  // Movement type: static (default), animated (cycling), or moving (bouncing)
+  movementType?: 'static' | 'animated' | 'moving';
+  // For moving holes
+  movementAxis?: 'x' | 'y';
+  movementBounds?: { min: number; max: number };
+  movementState?: {
+    direction: 1 | -1; // 1 = forward, -1 = backward
+    phase: 'moving' | 'stopping' | 'starting';
+    progress: number; // 0 to 1 progress along the path
+    lastUpdate: number;
+    duration: number; // ms for this segment
+    stopTime?: number; // for pausing at ends
+  };
+  
   // Saucer behavior for power-up holes
   saucerState?: {
     isActive: boolean;
@@ -480,6 +494,97 @@ export class Level {
    */
   public updateAnimatedHoles(currentTime: number): void {
     for (const hole of this.levelData.holes) {
+      // --- MOVING HOLE LOGIC ---
+      if (hole.movementType === 'moving' && hole.movementAxis && hole.movementBounds && hole.movementState) {
+        const axis = hole.movementAxis;
+        const bounds = hole.movementBounds;
+        const state = hole.movementState;
+        const now = currentTime;
+        const dt = Math.max(1, now - state.lastUpdate);
+        state.lastUpdate = now;
+
+        // Calculate travel distance and speed (shorter = slower, longer = faster)
+        const travelDist = Math.abs(bounds.max - bounds.min);
+        // Clamp min/max speed (ms for full traversal)
+        const minDuration = 1200; // slowest (for short distance)
+        const maxDuration = 3500; // fastest (for long distance)
+        // Inverse: longer distance = shorter duration
+        const duration = MathUtils.lerp(maxDuration, minDuration, MathUtils.clamp(travelDist / 200, 0, 1));
+        state.duration = duration;
+
+        // Update progress
+        let progress = state.progress;
+        let phase = state.phase;
+        let direction = state.direction;
+        let t = progress;
+
+        if (phase === 'moving') {
+          t += (dt / duration) * direction;
+          
+          // Check for collision with other holes at the new position
+          const testPosition = { ...hole.position };
+          const newPos = MathUtils.lerp(bounds.min, bounds.max, t);
+          testPosition[axis] = newPos;
+          
+          // Check if this position would collide with any other hole
+          let collision = false;
+          for (const otherHole of this.levelData.holes) {
+            if (otherHole.id === hole.id || !otherHole.isActive) continue;
+            
+            const dx = testPosition.x - otherHole.position.x;
+            const dy = testPosition.y - otherHole.position.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            const minDistance = hole.radius + otherHole.radius + 8; // 8px buffer
+            
+            if (distance < minDistance) {
+              collision = true;
+              break;
+            }
+          }
+          
+          if (collision) {
+            // Stop and reverse direction
+            phase = 'stopping';
+            state.stopTime = now;
+            direction = -direction as 1 | -1;
+            // Don't update position, stay where we are
+          } else {
+            // No collision, update position
+            hole.position[axis] = newPos;
+            
+            // Check bounds
+            if (t >= 1) {
+              t = 1;
+              phase = 'stopping';
+              state.stopTime = now;
+              direction = -direction as 1 | -1;
+            } else if (t <= 0) {
+              t = 0;
+              phase = 'stopping';
+              state.stopTime = now;
+              direction = -direction as 1 | -1;
+            }
+          }
+        } else if (phase === 'stopping') {
+          // Hold at end for a moment, then start moving back
+          if (!state.stopTime) state.stopTime = now;
+          if (now - state.stopTime > 400) { // 0.4s pause
+            phase = 'moving';
+            state.stopTime = undefined;
+            state.lastUpdate = now;
+          }
+        }
+
+        // Update state
+        state.progress = MathUtils.clamp(t, 0, 1);
+        state.phase = phase;
+        state.direction = direction;
+        // Always active
+        hole.isActive = true;
+        continue;
+      }
+      // --- END MOVING HOLE LOGIC ---
+
       if (!hole.animationState?.isAnimated) continue;
 
       const animState = hole.animationState;
@@ -666,7 +771,7 @@ export class LevelManager {
     const holes: Hole[] = [];
     const PLAYFIELD_WIDTH = 360;
     const BALL_RADIUS = 14;
-    const HOLE_RADIUS = BALL_RADIUS; // Holes are exactly ball size
+    const HOLE_RADIUS = BALL_RADIUS;
     const BUFFER = 8; // Minimum spacing between holes
 
     // Bar starts at Y=590, so holes should start at least 10px above that
@@ -874,6 +979,32 @@ export class LevelManager {
     for (let levelId = 1; levelId <= 5; levelId++) {
       const { holes, goalHoles } = this.generateHoles(levelId);
 
+      // === SAMPLE MOVING HOLE FOR DEMO (Level 1 only) ===
+      if (levelId === 1) {
+        // Calculate safe movement bounds for the moving hole
+        const movingHoleBounds = this.calculateSafeMovementBounds(holes, { x: 180, y: 400 }, 'x');
+        
+        const movingHole: Hole = {
+          id: 'moving-hole-demo',
+          position: { x: 180, y: 400 }, // Center-ish
+          radius: 14,
+          isGoal: false,
+          isActive: true,
+          movementType: 'moving',
+          movementAxis: 'x', // Moves horizontally
+          movementBounds: movingHoleBounds,
+          movementState: {
+            direction: 1,
+            phase: 'moving',
+            progress: 0,
+            lastUpdate: Date.now(),
+            duration: 2000, // ms for full traversal (will be recalculated)
+          },
+        };
+        holes.push(movingHole);
+        logger.info(`🚀 Added sample moving hole to Level 1 - bounds: ${movingHoleBounds.min.toFixed(0)} to ${movingHoleBounds.max.toFixed(0)}`, null, 'LevelManager');
+      }
+
       const levelData: LevelData = {
         id: levelId,
         name: `Circuit Level ${levelId}`,
@@ -890,6 +1021,79 @@ export class LevelManager {
     }
 
     logger.info(`📚 Loaded ${this.levels.size} levels`, null, 'LevelManager');
+  }
+
+  /**
+   * Calculate safe movement bounds for a moving hole based on collision detection
+   */
+  private calculateSafeMovementBounds(existingHoles: Hole[], startPosition: Vector2, axis: 'x' | 'y'): { min: number; max: number } {
+    const HOLE_RADIUS = 14;
+    const BUFFER = 8; // Minimum spacing between holes
+    const MIN_DISTANCE = HOLE_RADIUS * 2 + BUFFER;
+    
+    // Start with playfield bounds
+    const PLAYFIELD_WIDTH = 360;
+    const PLAYFIELD_HEIGHT = 600;
+    
+    let minBound = axis === 'x' ? HOLE_RADIUS : HOLE_RADIUS;
+    let maxBound = axis === 'x' ? PLAYFIELD_WIDTH - HOLE_RADIUS : PLAYFIELD_HEIGHT - HOLE_RADIUS;
+    
+    // Check each existing hole to find safe bounds
+    for (const hole of existingHoles) {
+      if (!hole.isActive) continue;
+      
+      const holePos = hole.position;
+      const testPos = { ...startPosition };
+      
+      // Calculate distance between holes
+      const dx = testPos.x - holePos.x;
+      const dy = testPos.y - holePos.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
+      
+      if (distance < MIN_DISTANCE) {
+        // This hole is too close, adjust bounds
+        
+        if (axis === 'x') {
+          // Adjust X bounds based on Y distance
+          const yDistance = Math.abs(testPos.y - holePos.y);
+          if (yDistance < MIN_DISTANCE) {
+            // Holes overlap in Y, need to adjust X bounds
+            if (holePos.x < startPosition.x) {
+              // Hole is to the left, adjust min bound
+              minBound = Math.max(minBound, holePos.x + MIN_DISTANCE);
+            } else {
+              // Hole is to the right, adjust max bound
+              maxBound = Math.min(maxBound, holePos.x - MIN_DISTANCE);
+            }
+          }
+        } else {
+          // Adjust Y bounds based on X distance
+          const xDistance = Math.abs(testPos.x - holePos.x);
+          if (xDistance < MIN_DISTANCE) {
+            // Holes overlap in X, need to adjust Y bounds
+            if (holePos.y < startPosition.y) {
+              // Hole is above, adjust min bound
+              minBound = Math.max(minBound, holePos.y + MIN_DISTANCE);
+            } else {
+              // Hole is below, adjust max bound
+              maxBound = Math.min(maxBound, holePos.y - MIN_DISTANCE);
+            }
+          }
+        }
+      }
+    }
+    
+    // Ensure we have a reasonable movement range
+    const minRange = 50; // Minimum 50px movement range
+    if (maxBound - minBound < minRange) {
+      // Expand bounds to ensure minimum range
+      const center = (minBound + maxBound) / 2;
+      const halfRange = minRange / 2;
+      minBound = Math.max(axis === 'x' ? HOLE_RADIUS : HOLE_RADIUS, center - halfRange);
+      maxBound = Math.min(axis === 'x' ? PLAYFIELD_WIDTH - HOLE_RADIUS : PLAYFIELD_HEIGHT - HOLE_RADIUS, center + halfRange);
+    }
+    
+    return { min: minBound, max: maxBound };
   }
 
   /**
