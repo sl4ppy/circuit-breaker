@@ -45,7 +45,6 @@ export class PowerUpManager {
   private eventSystem: PowerUpEventSystem;
   
   // Validation and error handling
-  private lastValidation: { [key: string]: boolean } = {};
   private validationErrors: string[] = [];
 
   constructor(eventSystem?: PowerUpEventSystem) {
@@ -319,7 +318,6 @@ export class PowerUpManager {
 
     // Clear validation errors
     this.validationErrors = [];
-    this.lastValidation = {};
 
     logger.info('⚡ Power-ups initialized for new run (zero charges)', null, 'PowerUpManager');
   }
@@ -376,7 +374,6 @@ export class PowerUpManager {
    * Update upgrade progress
    */
   public updateUpgradeProgress(updates: Partial<UpgradeProgress>): void {
-    const oldProgress = { ...this.upgradeProgress };
     this.upgradeProgress = { ...this.upgradeProgress, ...updates };
     
     // Update max charges for affected power-ups
@@ -592,7 +589,6 @@ export class PowerUpManager {
     this.powerUpEffects = {};
     this.currentTime = 0;
     this.validationErrors = [];
-    this.lastValidation = {};
     this.eventSystem.clearHistory();
     
     logger.info('⚡ PowerUpManager reset', null, 'PowerUpManager');

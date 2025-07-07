@@ -67,6 +67,7 @@ export class PhysicsEngine {
 
   // Simulation parameters (optimized for performance)
   private deltaTime: number = 1 / 60;
+  private timeScale: number = 1.0;
 
   // Performance tracking
   private debug: boolean = false;
@@ -220,6 +221,8 @@ export class PhysicsEngine {
    * Single physics simulation step (optimized)
    */
   private simulateStep(dt: number): void {
+    // Apply time scale for slow motion effects
+    dt *= this.timeScale;
     // Clear collision manifolds and rolling flags
     this.collisionManifolds = [];
     for (const obj of this.objects) {
@@ -989,5 +992,12 @@ export class PhysicsEngine {
     Debug.log(
       'Legacy bounce energy setting ignored - use per-object restitution instead',
     );
+  }
+
+  /**
+   * Set time scale for physics simulation (for slow motion effects)
+   */
+  public setTimeScale(scale: number): void {
+    this.timeScale = Math.max(0.1, Math.min(scale, 2.0)); // Clamp between 0.1 and 2.0
   }
 }

@@ -1,7 +1,7 @@
 // Circuit Breaker - Power-Up Debug System
 // Provides comprehensive debugging tools for power-up system
 
-import { PowerUpManager, PowerUpType, PowerUpState } from '../core/PowerUpManager';
+import { PowerUpManager, PowerUpType } from '../core/PowerUpManager';
 import { PowerUpEffects } from '../core/PowerUpEffects';
 import { PowerUpEventSystem } from '../core/PowerUpEventSystem';
 import { logger } from './Logger';
@@ -35,7 +35,6 @@ export class PowerUpDebugger {
   
   // Performance tracking
   private frameStartTime: number = 0;
-  private lastFrameTime: number = 0;
   private frameCount: number = 0;
   private performanceHistory: number[] = [];
   private maxHistoryLength: number = 60; // 1 second at 60fps
@@ -215,7 +214,6 @@ export class PowerUpDebugger {
     }
     
     this.frameCount++;
-    this.lastFrameTime = frameTime;
   }
 
   /**
@@ -400,7 +398,7 @@ export class PowerUpDebugger {
         ctx.fillStyle = '#888888';
         ctx.fillText('None', 25, yOffset);
       } else {
-        recentEvents.reverse().forEach((event, index) => {
+        recentEvents.reverse().forEach((event) => {
           const age = Date.now() - event.timestamp;
           const color = age < 1000 ? '#00ff00' : age < 5000 ? '#ffff00' : '#888888';
           ctx.fillStyle = color;

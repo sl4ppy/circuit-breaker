@@ -327,7 +327,6 @@ export class Level {
     for (const hole of this.levelData.holes) {
       if (!hole.saucerState?.isActive) continue;
 
-      const _elapsed = currentTime - hole.saucerState.startTime;
       const saucerState = hole.saucerState;
 
       if (saucerState.phase === 'sinking') {
@@ -408,8 +407,6 @@ export class Level {
    * Update animated holes
    */
   public updateAnimatedHoles(currentTime: number): void {
-    const animatedHoles = this.levelData.holes.filter(h => h.animationState?.isAnimated);
-    
     for (const hole of this.levelData.holes) {
       if (!hole.animationState?.isAnimated) continue;
 

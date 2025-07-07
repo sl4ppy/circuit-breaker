@@ -35,7 +35,7 @@ export interface PhysicsEffect {
 export class PowerUpEffects {
   // Caching system
   private visualEffectCache: Map<string, VisualEffect[]> = new Map();
-  private physicsEffectCache: Map<PowerUpType, PhysicsEffect> = new Map();
+
   private lastCacheUpdate: Map<PowerUpType, number> = new Map();
   private cacheTimeout: number = 1000; // 1 second cache timeout
 

@@ -223,7 +223,7 @@ export class PointFlyOffManager {
     let oldestId = '';
     let oldestTime = Infinity;
 
-    for (const [id, flyOff] of this.activeFlyOffs) {
+    for (const [id] of this.activeFlyOffs) {
       const creationTime = parseInt(id.split('-')[1]);
       if (creationTime < oldestTime) {
         oldestTime = creationTime;

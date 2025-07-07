@@ -5,6 +5,7 @@
 🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/circuit-breaker/)** 🎮
 
 ![Circuit Breaker Screenshot](docs/images/screenshot_01.png)
+
 *Circuit Breaker in action - Experience the neon cyberpunk pinball gameplay with professional loading screens, attract mode, and immersive audio-visual effects.*
 
 ## Game Concept
@@ -26,10 +27,6 @@
 - **Velocity-Based Audio Integration**: Collision sounds dynamically adapt to impact intensity
 - **Complex Tilting Bar Mechanics**: Independent left/right control with realistic friction and bounce
 
-### Procedural Audio System
-- **Zero External Files**: All sounds generated mathematically using Web Audio API
-- **Real-time Audio Generation**: Velocity-responsive pitch and volume adjustments
-- **Dynamic Music System**: Seamless state-based transitions with browser-compliant audio handling
 
 ### Advanced Rendering Pipeline
 - **Sprite Atlas System**: Professional sprite rendering with procedural fallbacks
@@ -40,6 +37,7 @@
 ## Roadmap
 
 ### 🚧 Current Focus
+- **Game Systems**: Powerups, bonus', meta progression
 - **Particle Effects**: Electrical sparks and ball impact effects
 - **Dynamic Lighting**: Enhanced glow effects around holes and bars
 - **Mobile Optimization**: Touch controls and responsive design
