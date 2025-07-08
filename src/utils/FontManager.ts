@@ -59,7 +59,7 @@ export class FontManager {
           );
           const interceptorItalic = new FontFace(
             'Interceptor',
-            'url("./assets/fonts/Interceptor Italic.otf")',
+            'url("/assets/fonts/Interceptor Italic.otf")',
             { style: 'italic' },
           );
           const interceptorBold = new FontFace(
