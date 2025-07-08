@@ -55,21 +55,21 @@ export class FontManager {
         try {
           const interceptorRegular = new FontFace(
             'Interceptor',
-            'url("/assets/fonts/Interceptor.otf")',
+            'url("/circuit-breaker/assets/fonts/Interceptor.otf")',
           );
           const interceptorItalic = new FontFace(
             'Interceptor',
-            'url("/assets/fonts/Interceptor Italic.otf")',
+            'url("/circuit-breaker/assets/fonts/Interceptor Italic.otf")',
             { style: 'italic' },
           );
           const interceptorBold = new FontFace(
             'Interceptor',
-            'url("./assets/fonts/Interceptor Bold.otf")',
+            'url("/circuit-breaker/assets/fonts/Interceptor Bold.otf")',
             { weight: 'bold' },
           );
           const interceptorBoldItalic = new FontFace(
             'Interceptor',
-            'url("./assets/fonts/Interceptor Bold Italic.otf")',
+            'url("/circuit-breaker/assets/fonts/Interceptor Bold Italic.otf")',
             { weight: 'bold', style: 'italic' },
           );
           fontPromises.push(
