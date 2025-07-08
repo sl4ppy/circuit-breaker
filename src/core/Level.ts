@@ -768,7 +768,7 @@ export class LevelManager {
     const maxLevelId = 15; // Update if you add more levels
     for (let levelId = 1; levelId <= maxLevelId; levelId++) {
       try {
-        const response = await fetch(`/levels/level${levelId}.yaml`);
+        const response = await fetch(`/public/levels/level${levelId}.yaml`);
         if (!response.ok) {
           throw new Error(`Failed to load level ${levelId}: ${response.statusText}`);
         }
