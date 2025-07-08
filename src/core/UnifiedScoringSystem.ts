@@ -62,13 +62,23 @@ export class UnifiedScoringSystem {
   }
 
   /**
-   * Start timing a level
+   * Start timing a level (but don't start the timer yet - wait for first player input)
    */
   public startLevel(levelId: number): void {
-    this.currentLevelStartTime = Date.now();
+    this.currentLevelStartTime = 0; // Don't start timing yet
     this.currentLevelTimeReductions = 0;
     this.currentLevelAssistPenalties = 0;
-    logger.info(`⏰ Started timing level ${levelId}`, null, 'UnifiedScoringSystem');
+    logger.info(`⏰ Level ${levelId} ready - waiting for first player input to start timer`, null, 'UnifiedScoringSystem');
+  }
+
+  /**
+   * Start the actual timer (called when player first moves the bar)
+   */
+  public startTimer(): void {
+    if (this.currentLevelStartTime === 0) {
+      this.currentLevelStartTime = Date.now();
+      logger.info('⏰ Timer started for unified scoring system', null, 'UnifiedScoringSystem');
+    }
   }
 
   /**
@@ -134,7 +144,7 @@ export class UnifiedScoringSystem {
       `🎯 Level ${levelId} completed: ${levelPoints.toFixed(2)} points ` +
       `(${baseLevelValue}/${adjustedTime.toFixed(2)}s = ${levelPoints.toFixed(2)})`,
       null,
-      'UnifiedScoringSystem'
+      'UnifiedScoringSystem',
     );
 
     // Reset level timing
@@ -174,7 +184,7 @@ export class UnifiedScoringSystem {
     rawTime: number;
     timeReductions: number;
     assistPenalties: number;
-  } {
+    } {
     return {
       isActive: this.currentLevelStartTime > 0,
       rawTime: this.currentLevelStartTime > 0 ? (Date.now() - this.currentLevelStartTime) / 1000 : 0,
@@ -192,7 +202,7 @@ export class UnifiedScoringSystem {
       `🏁 Scoring session ended: ${this.currentSession.totalScore.toFixed(2)} total points ` +
       `across ${this.currentSession.levelScores.length} levels`,
       null,
-      'UnifiedScoringSystem'
+      'UnifiedScoringSystem',
     );
     return { ...this.currentSession };
   }
@@ -206,7 +216,7 @@ export class UnifiedScoringSystem {
     averageScore: number;
     bestLevelScore: number;
     worstLevelScore: number;
-  } {
+    } {
     const levelScores = this.currentSession.levelScores;
     const levelPoints = levelScores.map(ls => ls.levelPoints);
     
@@ -237,5 +247,14 @@ export class UnifiedScoringSystem {
     const baseLevelValue = UnifiedScoringSystem.calculateBaseLevelValue(levelId);
     
     return baseLevelValue / adjustedTime;
+  }
+
+  /**
+   * Get maximum possible score for a level (when timer hasn't started)
+   */
+  public getMaxLevelScore(levelId: number): number {
+    const baseLevelValue = UnifiedScoringSystem.calculateBaseLevelValue(levelId);
+    // Maximum score would be achieved with minimum time (0.1 seconds)
+    return baseLevelValue / 0.1;
   }
 } 

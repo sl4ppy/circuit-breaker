@@ -4,6 +4,8 @@
 import { Vector2, MathUtils } from '../utils/MathUtils';
 import { logger } from '../utils/Logger';
 import { PowerUpType } from './PowerUpTypes';
+import { parseAsciiLevel } from './AsciiLevelParser';
+// Removed fs import - using fetch for browser compatibility
 
 export interface Hole {
   id: string;
@@ -513,7 +515,7 @@ export class Level {
         state.duration = duration;
 
         // Update progress
-        let progress = state.progress;
+        const progress = state.progress;
         let phase = state.phase;
         let direction = state.direction;
         let t = progress;
@@ -521,49 +523,33 @@ export class Level {
         if (phase === 'moving') {
           t += (dt / duration) * direction;
           
-          // Check for collision with other holes at the new position
-          const testPosition = { ...hole.position };
-          const newPos = MathUtils.lerp(bounds.min, bounds.max, t);
-          testPosition[axis] = newPos;
-          
-          // Check if this position would collide with any other hole
-          let collision = false;
-          for (const otherHole of this.levelData.holes) {
-            if (otherHole.id === hole.id || !otherHole.isActive) continue;
-            
-            const dx = testPosition.x - otherHole.position.x;
-            const dy = testPosition.y - otherHole.position.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-            const minDistance = hole.radius + otherHole.radius + 8; // 8px buffer
-            
-            if (distance < minDistance) {
-              collision = true;
-              break;
-            }
+          // Apply smooth easing throughout the entire movement
+          let easedT = t;
+          if (direction === 1) {
+            // Moving forward: smooth easeInOut for the entire movement
+            easedT = MathUtils.easeInOut(t);
+          } else {
+            // Moving backward: smooth easeInOut for the entire movement
+            easedT = MathUtils.easeInOut(t);
           }
           
-          if (collision) {
-            // Stop and reverse direction
+          // Update position with easing
+          const newPos = MathUtils.lerp(bounds.min, bounds.max, easedT);
+          hole.position[axis] = newPos;
+          
+          // Check bounds
+          if (t >= 1) {
+            t = 1;
             phase = 'stopping';
             state.stopTime = now;
             direction = -direction as 1 | -1;
-            // Don't update position, stay where we are
-          } else {
-            // No collision, update position
-            hole.position[axis] = newPos;
-            
-            // Check bounds
-            if (t >= 1) {
-              t = 1;
-              phase = 'stopping';
-              state.stopTime = now;
-              direction = -direction as 1 | -1;
-            } else if (t <= 0) {
-              t = 0;
-              phase = 'stopping';
-              state.stopTime = now;
-              direction = -direction as 1 | -1;
-            }
+            console.log(`🔄 Moving hole reached max bound (progress: ${t.toFixed(3)}), reversing direction to ${direction}`);
+          } else if (t <= 0) {
+            t = 0;
+            phase = 'stopping';
+            state.stopTime = now;
+            direction = -direction as 1 | -1;
+            console.log(`🔄 Moving hole reached min bound (progress: ${t.toFixed(3)}), reversing direction to ${direction}`);
           }
         } else if (phase === 'stopping') {
           // Hold at end for a moment, then start moving back
@@ -572,6 +558,7 @@ export class Level {
             phase = 'moving';
             state.stopTime = undefined;
             state.lastUpdate = now;
+            console.log(`🚀 Moving hole finished stopping, starting to move in direction ${direction}`);
           }
         }
 
@@ -752,6 +739,8 @@ export class Level {
 
     logger.info(`🧪 DEBUG: Level ${this.levelData.id} force completed! (${this.completedGoals.size}/${this.levelData.requiredGoals} goals)`, null, 'Level');
   }
+
+
 }
 
 export class LevelManager {
@@ -761,339 +750,120 @@ export class LevelManager {
 
   constructor() {
     logger.info('📚 LevelManager initialized', null, 'LevelManager');
-    this.loadLevels();
+    this.initializeLevels();
   }
 
   /**
-   * Generate holes for a level with increasing density from bottom to top
+   * Initialize levels by loading configuration and generating levels
    */
-  private generateHoles(levelId: number): { holes: Hole[]; goalHoles: Hole[] } {
-    const holes: Hole[] = [];
-    const PLAYFIELD_WIDTH = 360;
-    const BALL_RADIUS = 14;
-    const HOLE_RADIUS = BALL_RADIUS;
-    const BUFFER = 8; // Minimum spacing between holes
-
-    // Bar starts at Y=590, so holes should start at least 10px above that
-    const BAR_START_POSITION = 590;
-    const HOLE_START_Y = BAR_START_POSITION - 10; // Y=580
-    const TOP_BOUNDARY = 50; // Top of playfield
-    const GOAL_AREA_HEIGHT = 100; // Reserve top 100px for goal
-
-    // Power-up hole configurations - limit to 1-2 power-ups per level
-    const maxPowerUpsPerLevel = Math.min(2, Math.max(1, Math.floor(levelId / 2))); // 1 for level 1-2, 2 for level 3+
-    const powerUpHoleConfigs = [
-      { type: PowerUpType.SLOW_MO_SURGE, spawnChance: 0.15, color: '#00ffff' },
-      { type: PowerUpType.MAGNETIC_GUIDE, spawnChance: 0.12, color: '#ff00ff' },
-      { type: PowerUpType.CIRCUIT_PATCH, spawnChance: 0.08, color: '#00ff00' },
-      { type: PowerUpType.OVERCLOCK_BOOST, spawnChance: 0.10, color: '#ff6600' },
-      { type: PowerUpType.SCAN_REVEAL, spawnChance: 0.06, color: '#ffff00' },
-    ];
-
-    // Generate goal holes near the top (Y: 50-150)
-    const goalHoles: Hole[] = [];
-    const numGoals = levelId + 1; // Level 1 = 2 goals, Level 2 = 3 goals, etc.
-
-    for (let i = 0; i < numGoals; i++) {
-      let attempts = 0;
-      let validPosition = false;
-
-      while (!validPosition && attempts < 100) {
-        const goalX = 50 + Math.random() * (PLAYFIELD_WIDTH - 100);
-        const goalY = TOP_BOUNDARY + Math.random() * GOAL_AREA_HEIGHT;
-
-        // Check if position is valid (not too close to other goal holes)
-        validPosition = true;
-        for (const existingGoal of goalHoles) {
-          const dx = goalX - existingGoal.position.x;
-          const dy = goalY - existingGoal.position.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (distance < HOLE_RADIUS * 3 + BUFFER) {
-            // More spacing for goal holes
-            validPosition = false;
-            break;
-          }
-        }
-
-        if (validPosition) {
-          goalHoles.push({
-            id: `goal-${levelId}-${i}`,
-            position: { x: goalX, y: goalY },
-            radius: HOLE_RADIUS,
-            isGoal: true,
-            isActive: true,
-          });
-        }
-
-        attempts++;
-      }
-    }
-
-    // Add goal holes to the holes array
-    holes.push(...goalHoles);
-
-    // Generate regular holes with INCREASING density toward the top
-    const sections = 10; // Divide playfield into sections
-    const playableHeight = HOLE_START_Y - (TOP_BOUNDARY + GOAL_AREA_HEIGHT); // Y=580 to Y=150
-    const sectionHeight = playableHeight / sections;
-
-    // Difficulty scaling - sparse at bottom, dense at top
-    const baseDensity = 0.05 + (levelId - 1) * 0.01; // Very sparse at bottom
-    const maxDensity = 0.3 + (levelId - 1) * 0.08; // Dense at top
-
-    // Track power-up holes to limit them
-    let powerUpHolesCreated = 0;
-
-    for (let section = 0; section < sections; section++) {
-      // Section 0 is at bottom (Y=580), section 9 is near top (Y=150)
-      const sectionY = HOLE_START_Y - (section + 1) * sectionHeight;
-
-      // Density increases as we go toward the top (higher section number = higher density)
-      const sectionDensity = baseDensity + (section / sections) * maxDensity;
-      const holesInSection = Math.floor(sectionDensity * 12); // 12 holes max per section
-
-      for (let i = 0; i < holesInSection; i++) {
-        let attempts = 0;
-        let validPosition = false;
-
-        while (!validPosition && attempts < 50) {
-          const x =
-            HOLE_RADIUS + Math.random() * (PLAYFIELD_WIDTH - 2 * HOLE_RADIUS);
-          const y = sectionY + Math.random() * sectionHeight;
-
-          // Check if position is valid (not too close to other holes)
-          validPosition = true;
-          for (const existingHole of holes) {
-            const dx = x - existingHole.position.x;
-            const dy = y - existingHole.position.y;
-            const distance = Math.sqrt(dx * dx + dy * dy);
-
-            if (distance < HOLE_RADIUS * 2 + BUFFER) {
-              validPosition = false;
-              break;
-            }
-          }
-
-          if (validPosition) {
-            // Determine if this hole should be a power-up hole
-            let powerUpType: PowerUpType | undefined = undefined;
-            
-            // Only create power-up holes if we haven't reached the limit
-            if (powerUpHolesCreated < maxPowerUpsPerLevel) {
-              // Check each power-up type for this hole
-              for (const config of powerUpHoleConfigs) {
-                if (Math.random() < config.spawnChance) {
-                  powerUpType = config.type;
-                  powerUpHolesCreated++;
-                  break; // Only one power-up per hole
-                }
-              }
-            }
-            
-            holes.push({
-              id: `hole-${levelId}-${section}-${i}`,
-              position: { x, y },
-              radius: HOLE_RADIUS,
-              isGoal: false,
-              isActive: true,
-              powerUpType: powerUpType,
-            });
-          }
-
-          attempts++;
-        }
-      }
-    }
-
-    // Generate animated holes based on level - start with 2-3 holes in first few levels
-    const numAnimatedHoles = levelId <= 2 ? 2 : levelId <= 4 ? 3 : levelId + 1; // 2 holes on levels 1-2, 3 holes on levels 3-4, then scale up
-    
-    for (let i = 0; i < numAnimatedHoles; i++) {
-      let attempts = 0;
-      let validPosition = false;
-
-      while (!validPosition && attempts < 50) {
-        // Place animated holes only in the TOP HALF of the playfield
-        const animX = HOLE_RADIUS + Math.random() * (PLAYFIELD_WIDTH - 2 * HOLE_RADIUS);
-        const topHalfStart = TOP_BOUNDARY + GOAL_AREA_HEIGHT + 20; // Y=170
-        const topHalfEnd = topHalfStart + (HOLE_START_Y - topHalfStart) / 2; // Middle of playfield
-        const animY = topHalfStart + Math.random() * (topHalfEnd - topHalfStart);
-
-        // Check if position is valid (not too close to other holes)
-        validPosition = true;
-        for (const existingHole of holes) {
-          const dx = animX - existingHole.position.x;
-          const dy = animY - existingHole.position.y;
-          const distance = Math.sqrt(dx * dx + dy * dy);
-
-          if (distance < HOLE_RADIUS * 3 + BUFFER) {
-            // Extra spacing for animated holes
-            validPosition = false;
-            break;
-          }
-        }
-
-        if (validPosition) {
-          // Create animated hole with cycling behavior
-          const animatedHole: Hole = {
-            id: `animated-hole-${levelId}-${i}`,
-            position: { x: animX, y: animY },
-            radius: HOLE_RADIUS,
-            isGoal: false,
-            isActive: false, // Start inactive, becomes active after animating in
-            animationState: {
-              isAnimated: true,
-              phase: 'hidden', // Start hidden, not immediately visible
-              startTime: Date.now() + (i * 2000 + Math.random() * 3000), // Staggered start times (2-5s)
-              animatingInDuration: 500, // 0.5 seconds with easeOutBack (bouncy entrance)
-              idleDuration: 3000 + Math.random() * 7000, // 3-10 seconds visible
-              animatingOutDuration: 500, // 0.5 seconds with easeInBack (smooth acceleration out)
-              hiddenDuration: 5000 + Math.random() * 15000, // 5-20 seconds hidden
-              currentScale: 0.0, // Start at 0% scale
-            },
-          };
-
-          holes.push(animatedHole);
-          logger.info(`🌟 Created animated hole ${animatedHole.id} - starts in ${(animatedHole.animationState!.startTime - Date.now())/1000}s`, null, 'Level');
-        }
-
-        attempts++;
-      }
-    }
-
-    logger.info(
-      `🕳️ Generated ${holes.length} holes for level ${levelId} (${powerUpHolesCreated} power-up holes, ${numAnimatedHoles} cycling animated holes, sparse at bottom, dense at top)`,
-      null,
-      'Level',
-    );
-
-    return { holes, goalHoles };
+  private async initializeLevels(): Promise<void> {
+    await this.loadLevels();
   }
 
   /**
-   * Load all level definitions
+   * Load all level definitions from YAML ASCII grid files
    */
-  private loadLevels(): void {
-    // Generate 5 levels with increasing difficulty
-    for (let levelId = 1; levelId <= 5; levelId++) {
-      const { holes, goalHoles } = this.generateHoles(levelId);
-
-      // === SAMPLE MOVING HOLE FOR DEMO (Level 1 only) ===
-      if (levelId === 1) {
-        // Calculate safe movement bounds for the moving hole
-        const movingHoleBounds = this.calculateSafeMovementBounds(holes, { x: 180, y: 400 }, 'x');
-        
-        const movingHole: Hole = {
-          id: 'moving-hole-demo',
-          position: { x: 180, y: 400 }, // Center-ish
+  private async loadLevels(): Promise<void> {
+    // Assume levels are numbered 1..N and exist in public/levels/level{levelId}.yaml
+    const maxLevelId = 15; // Update if you add more levels
+    for (let levelId = 1; levelId <= maxLevelId; levelId++) {
+      try {
+        const response = await fetch(`/levels/level${levelId}.yaml`);
+        if (!response.ok) {
+          throw new Error(`Failed to load level ${levelId}: ${response.statusText}`);
+        }
+        const yamlText = await response.text();
+        const { meta, holes } = parseAsciiLevel(yamlText);
+        const goalHoles = holes.filter(h => h.type === 'goal').map((h, i) => ({
+          id: `goal-hole-${levelId}-${i}`,
+          position: { x: h.x, y: h.y },
+          radius: 14,
+          isGoal: true,
+          isActive: true,
+        }));
+        const standardHoles = holes.filter(h => h.type === 'standard').map((h, i) => ({
+          id: `standard-hole-${levelId}-${i}`,
+          position: { x: h.x, y: h.y },
           radius: 14,
           isGoal: false,
           isActive: true,
-          movementType: 'moving',
-          movementAxis: 'x', // Moves horizontally
-          movementBounds: movingHoleBounds,
-          movementState: {
-            direction: 1,
-            phase: 'moving',
-            progress: 0,
-            lastUpdate: Date.now(),
-            duration: 2000, // ms for full traversal (will be recalculated)
+        }));
+        const animatedHoles = holes.filter(h => h.type === 'animated').map((h, i) => ({
+          id: `animated-hole-${levelId}-${i}`,
+          position: { x: h.x, y: h.y },
+          radius: 14,
+          isGoal: false,
+          isActive: false, // Start inactive, becomes active after animating in
+          movementType: 'animated',
+          animationState: {
+            isAnimated: true,
+            phase: 'hidden', // Start hidden, not immediately visible
+            startTime: Date.now(),
+            animatingInDuration: 500, // 0.5 seconds with easeOutBack (bouncy entrance)
+            idleDuration: 3000 + Math.random() * 7000, // 3-10 seconds visible
+            animatingOutDuration: 500, // 0.5 seconds with easeInBack (smooth acceleration out)
+            hiddenDuration: 5000 + Math.random() * 15000, // 5-20 seconds hidden
+            currentScale: 0.0, // Start at 0% scale
           },
+        }));
+        const powerupHoles = holes.filter(h => h.type === 'powerup').map((h, i) => ({
+          id: `powerup-hole-${levelId}-${i}`,
+          position: { x: h.x, y: h.y },
+          radius: 14,
+          isGoal: false,
+          isActive: true,
+          powerUpType: 'random',
+        }));
+        // Parse moving holes with their movement paths and bounds
+        const movingHoles = holes.filter(h => h.type === 'moving').map((h, i) => {
+          const hole: Hole = {
+            id: `moving-hole-${levelId}-${i}`,
+            position: { x: h.x, y: h.y },
+            radius: 14,
+            isGoal: false,
+            isActive: true,
+            movementType: 'moving',
+          };
+          
+          // If the parsed hole has movement data, use it
+          if (h.movementAxis && h.movementBounds) {
+            hole.movementAxis = h.movementAxis;
+            hole.movementBounds = h.movementBounds;
+            hole.movementState = {
+              direction: 1,
+              phase: 'moving',
+              progress: 0,
+              lastUpdate: Date.now(),
+              duration: 2000, // Will be calculated dynamically in updateAnimatedHoles
+            };
+          }
+          
+          return hole;
+        });
+        const allHoles = [
+          ...standardHoles,
+          ...animatedHoles,
+          ...powerupHoles,
+          ...movingHoles,
+          ...goalHoles,
+        ];
+        const levelData: LevelData = {
+          id: levelId,
+          name: meta.name,
+          description: meta.description || '',
+          holes: allHoles,
+          goalHoles: goalHoles,
+          ballStartPosition: { x: 343, y: 584 }, // You can add this to YAML if desired
+          difficulty: levelId,
+          bonusMultiplier: 1.0 + (levelId - 1) * 0.2,
+          requiredGoals: goalHoles.length,
         };
-        holes.push(movingHole);
-        logger.info(`🚀 Added sample moving hole to Level 1 - bounds: ${movingHoleBounds.min.toFixed(0)} to ${movingHoleBounds.max.toFixed(0)}`, null, 'LevelManager');
-      }
-
-      const levelData: LevelData = {
-        id: levelId,
-        name: `Circuit Level ${levelId}`,
-        description: `Navigate through the holes to reach the goal circuit. Difficulty: ${levelId}/5`,
-        holes,
-        goalHoles,
-        ballStartPosition: { x: 343, y: 584 }, // On the tilting bar (bar starts at Y=590, ball should be slightly above)
-        difficulty: levelId,
-        bonusMultiplier: 1.0 + (levelId - 1) * 0.2,
-        requiredGoals: goalHoles.length,
-      };
-
-      this.levels.set(levelId, levelData);
-    }
-
-    logger.info(`📚 Loaded ${this.levels.size} levels`, null, 'LevelManager');
-  }
-
-  /**
-   * Calculate safe movement bounds for a moving hole based on collision detection
-   */
-  private calculateSafeMovementBounds(existingHoles: Hole[], startPosition: Vector2, axis: 'x' | 'y'): { min: number; max: number } {
-    const HOLE_RADIUS = 14;
-    const BUFFER = 8; // Minimum spacing between holes
-    const MIN_DISTANCE = HOLE_RADIUS * 2 + BUFFER;
-    
-    // Start with playfield bounds
-    const PLAYFIELD_WIDTH = 360;
-    const PLAYFIELD_HEIGHT = 600;
-    
-    let minBound = axis === 'x' ? HOLE_RADIUS : HOLE_RADIUS;
-    let maxBound = axis === 'x' ? PLAYFIELD_WIDTH - HOLE_RADIUS : PLAYFIELD_HEIGHT - HOLE_RADIUS;
-    
-    // Check each existing hole to find safe bounds
-    for (const hole of existingHoles) {
-      if (!hole.isActive) continue;
-      
-      const holePos = hole.position;
-      const testPos = { ...startPosition };
-      
-      // Calculate distance between holes
-      const dx = testPos.x - holePos.x;
-      const dy = testPos.y - holePos.y;
-      const distance = Math.sqrt(dx * dx + dy * dy);
-      
-      if (distance < MIN_DISTANCE) {
-        // This hole is too close, adjust bounds
-        
-        if (axis === 'x') {
-          // Adjust X bounds based on Y distance
-          const yDistance = Math.abs(testPos.y - holePos.y);
-          if (yDistance < MIN_DISTANCE) {
-            // Holes overlap in Y, need to adjust X bounds
-            if (holePos.x < startPosition.x) {
-              // Hole is to the left, adjust min bound
-              minBound = Math.max(minBound, holePos.x + MIN_DISTANCE);
-            } else {
-              // Hole is to the right, adjust max bound
-              maxBound = Math.min(maxBound, holePos.x - MIN_DISTANCE);
-            }
-          }
-        } else {
-          // Adjust Y bounds based on X distance
-          const xDistance = Math.abs(testPos.x - holePos.x);
-          if (xDistance < MIN_DISTANCE) {
-            // Holes overlap in X, need to adjust Y bounds
-            if (holePos.y < startPosition.y) {
-              // Hole is above, adjust min bound
-              minBound = Math.max(minBound, holePos.y + MIN_DISTANCE);
-            } else {
-              // Hole is below, adjust max bound
-              maxBound = Math.min(maxBound, holePos.y - MIN_DISTANCE);
-            }
-          }
-        }
+        this.levels.set(levelId, levelData);
+      } catch (err) {
+        logger.error(`Failed to load level ${levelId} from YAML: ${err}`);
       }
     }
-    
-    // Ensure we have a reasonable movement range
-    const minRange = 50; // Minimum 50px movement range
-    if (maxBound - minBound < minRange) {
-      // Expand bounds to ensure minimum range
-      const center = (minBound + maxBound) / 2;
-      const halfRange = minRange / 2;
-      minBound = Math.max(axis === 'x' ? HOLE_RADIUS : HOLE_RADIUS, center - halfRange);
-      maxBound = Math.min(axis === 'x' ? PLAYFIELD_WIDTH - HOLE_RADIUS : PLAYFIELD_HEIGHT - HOLE_RADIUS, center + halfRange);
-    }
-    
-    return { min: minBound, max: maxBound };
+    logger.info(`📚 Loaded ${this.levels.size} levels from YAML ASCII grid files`, null, 'LevelManager');
   }
 
   /**
@@ -1163,15 +933,38 @@ export class LevelManager {
   /**
    * Regenerate all levels for a new run/game
    */
-  public regenerateLevels(): void {
+  public async regenerateLevels(): Promise<void> {
     logger.info('🔄 Regenerating all levels for new run...', null, 'LevelManager');
     
     // Clear existing levels
     this.levels.clear();
     
     // Generate fresh levels
-    this.loadLevels();
+    await this.loadLevels();
     
     logger.info('✅ All levels regenerated with new layouts', null, 'LevelManager');
   }
+
+  /**
+   * Force reload all levels from YAML files (for development)
+   */
+  public async forceReloadLevels(): Promise<void> {
+    logger.info('🔄 Force reloading all levels from YAML files...', null, 'LevelManager');
+    
+    // Clear existing levels
+    this.levels.clear();
+    
+    // Reload all levels from YAML files
+    await this.loadLevels();
+    
+    logger.info('✅ All levels force reloaded from YAML files', null, 'LevelManager');
+  }
+
+
+
+
+
+
+
+
 }

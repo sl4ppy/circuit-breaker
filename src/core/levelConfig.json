@@ -1,0 +1,45 @@
+{
+  "levels": {
+    "1": {
+      "powerUpHoles": 1,
+      "animatedHoles": 2,
+      "standardHoles": 20,
+      "goals": 2,
+      "description": "Circuit Level 1 - Navigate through the holes to reach the goal circuit. Difficulty: 1/5"
+    },
+    "2": {
+      "powerUpHoles": 2,
+      "animatedHoles": 3,
+      "standardHoles": 25,
+      "goals": 3,
+      "description": "Circuit Level 2 - Navigate through the holes to reach the goal circuit. Difficulty: 2/5"
+    },
+    "3": {
+      "powerUpHoles": 3,
+      "animatedHoles": 4,
+      "standardHoles": 30,
+      "goals": 3,
+      "description": "Circuit Level 3 - Navigate through the holes to reach the goal circuit. Difficulty: 3/5"
+    },
+    "4": {
+      "powerUpHoles": 3,
+      "animatedHoles": 4,
+      "standardHoles": 35,
+      "goals": 3,
+      "description": "Circuit Level 4 - Navigate through the holes to reach the goal circuit. Difficulty: 4/5"
+    },
+    "5": {
+      "powerUpHoles": 3,
+      "animatedHoles": 4,
+      "standardHoles": 40,
+      "goals": 3,
+      "description": "Circuit Level 5 - Navigate through the holes to reach the goal circuit. Difficulty: 5/5"
+    }
+  },
+  "defaults": {
+    "powerUpHoles": 1,
+    "animatedHoles": 2,
+    "standardHoles": 20,
+    "goals": 2
+  }
+} 

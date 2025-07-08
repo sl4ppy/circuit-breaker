@@ -524,7 +524,7 @@ export class Renderer {
           return;
         }
       } else if (isGoalHole) {
-        spriteName = 'ball_whole_powerup';
+        spriteName = 'ball_hole_goal_1'; // Use dedicated goal hole sprite
       } else if (isPowerUpHole) {
         // Use specific power-up sprites from the power-up atlas
         const powerUpSprites = {
@@ -599,6 +599,11 @@ export class Renderer {
           this.ctx.font = '12px monospace';
           this.ctx.textAlign = 'center';
           this.ctx.fillText('✓', centerX, centerY + 4);
+        }
+
+        // Draw animated arrow above goal holes
+        if (isGoalHole && !isCompleted) {
+          this.drawGoalArrow(centerX, centerY, enlargedRadius);
         }
 
         // Power-up holes now use sprites instead of text icons
@@ -804,6 +809,40 @@ export class Renderer {
       
       this.ctx.globalAlpha = 1;
     }
+  }
+
+  /**
+   * Draw animated arrow above goal holes
+   */
+  private drawGoalArrow(centerX: number, centerY: number, holeRadius: number): void {
+    if (!this.ctx) return;
+
+    // Calculate arrow position and animation
+    const arrowOffset = holeRadius + 5; // Distance above the hole (reduced by 25px from original 15)
+    const bounceRange = 8; // How much the arrow bounces
+    const bounceSpeed = 0.006; // Speed of bounce animation
+    
+    // Create bouncing animation using sine wave
+    const time = Date.now() * bounceSpeed;
+    const bounceOffset = Math.sin(time) * bounceRange;
+    const arrowY = centerY - arrowOffset + bounceOffset;
+    
+    // Get arrow sprite frame
+    const frameData = spriteAtlas.getFrame('ball_hole_goal_arrow_1');
+    if (!frameData) return;
+    
+    // Calculate arrow scale to match hole size
+    const targetSize = holeRadius * 1.5; // Arrow slightly larger than hole
+    const spriteScale = targetSize / Math.max(frameData.frame.w, frameData.frame.h);
+    
+    // Draw arrow sprite
+    spriteAtlas.drawSprite(
+      this.ctx,
+      'ball_hole_goal_arrow_1',
+      centerX - (frameData.frame.w * spriteScale) / 2, // Center horizontally
+      arrowY - (frameData.frame.h * spriteScale) / 2, // Center vertically
+      spriteScale,
+    );
   }
 
   /**

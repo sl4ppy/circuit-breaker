@@ -1,0 +1,21 @@
+id: 13
+name: "Pinball Labyrinth"
+description: "A complex maze of moving and animated holes."
+cellWidth: 36
+cellHeight: 36
+offsetX: 18
+offsetY: 60
+grid: |
+  ...G..G..G....
+  ..M..M..M..M..
+  .A..O..A..O..A
+  ..M..M..M..M..
+  .O..M..O..A..O
+  ..M..M..M..M..
+  ..O..O..O..O..
+  ..............
+  ....P..P......
+  ..............
+  ..O..O..O..O..
+  ..............
+  .............. 

@@ -1,0 +1,21 @@
+id: 15
+name: "Ultimate Neon"
+description: "The ultimate challenge: dense, moving, animated, and powerup chaos."
+cellWidth: 36
+cellHeight: 36
+offsetX: 18
+offsetY: 60
+grid: |
+  ...G..G..G....
+  MMMMMMMMMMMMMM
+  .A..O..A..O..A
+  MMMMMMMMMMMMMM
+  .O..M..O..A..O
+  MMMMMMMMMMMMMM
+  ..O..O..O..O..
+  ..............
+  ..P..P..P..P..
+  ..............
+  ..O..O..O..O..
+  ..............
+  .............. 

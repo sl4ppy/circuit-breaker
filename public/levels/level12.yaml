@@ -1,0 +1,21 @@
+id: 12
+name: "Goal Fortress"
+description: "Goals are surrounded by moving and animated holes."
+cellWidth: 36
+cellHeight: 36
+offsetX: 18
+offsetY: 60
+grid: |
+  ..MG..G..GM..
+  ..M........M..
+  .A..O..A..O..A
+  ..M........M..
+  .O..M..O..A..O
+  ..M........M..
+  ..O..O..O..O..
+  ..............
+  ....P..P......
+  ..............
+  ..O..O..O..O..
+  ..............
+  .............. 

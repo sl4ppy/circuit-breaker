@@ -385,7 +385,7 @@ export class StorageManager {
   public updateUnifiedScoringData(
     progress: GameProgress, 
     scoreSession: ScoreSession, 
-    levelScores: LevelScoreData[]
+    levelScores: LevelScoreData[],
   ): void {
     // Update unified total score
     progress.unifiedTotalScore = scoreSession.totalScore;

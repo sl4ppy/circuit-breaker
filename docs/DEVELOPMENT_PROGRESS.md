@@ -2,15 +2,116 @@
 
 🎮 **[PLAY THE GAME NOW](https://sl4ppy.github.io/circuit-breaker/)** 🎮
 
-## Project Status: AUDIO-REACTIVE TITLE & UI POLISH v1.1.0 ✅
+## Project Status: ASCII LEVEL PARSER & ADVANCED HOLE SYSTEM v1.2.0 ✅
 
 **Date**: July 2025  
-**Phase**: Audio-Visual Polish & UX Enhancements  
+**Phase**: ASCII Level Parser Complete - Ready for Advanced Power-Up Effects  
 **Next Phase**: Advanced Power-Up Effects & Mobile Optimization  
 
 ---
 
-## Latest Development Updates - Version 1.1.0 🎵 DRAMATIC AUDIO-REACTIVE TITLE & UI POLISH
+## Latest Development Updates - Version 1.2.0 🎯 ASCII LEVEL PARSER & ADVANCED HOLE SYSTEM
+
+### Phase 14: ASCII Level Parser & Advanced Hole System ✅ COMPLETE
+
+#### ASCII Grid Level Design System
+- **YAML-Based Level Creation**: Complete ASCII grid level design system using YAML files for human-readable level creation
+- **Visual Grid Mapping**: Clear mapping of ASCII grid positions to pixel coordinates for precise level design
+- **10-Cell Wide Standard**: All levels standardized to 10 cells wide (360px playfield) with zero margin for consistent design
+- **Level Configuration**: Centralized level configuration system with JSON-based settings and YAML grid parsing
+- **Professional Workflow**: Level designers can now create levels using simple ASCII grids instead of complex code
+
+#### Moving Holes System
+- **Ping-Pong Movement**: Dynamic holes that bounce between defined bounds with smooth ping-pong behavior
+- **Consecutive M's Grouping**: ASCII parser groups consecutive 'M' characters as single moving holes with correct movement bounds
+- **Movement State Management**: Advanced movement state tracking with direction, phase, progress, and timing
+- **Collision Integration**: Moving holes maintain proper collision detection during movement
+- **Visual Feedback**: Smooth visual rendering of moving holes with proper physics integration
+
+#### Animated Holes System
+- **Asymmetric Animation**: Holes appear with easeOutBack (bouncy entrance) and disappear with easeInBack (smooth acceleration)
+- **Four-Phase Cycle**: Animating in → Idle → Animating out → Hidden → Repeat with randomized timing
+- **Level-Based Scaling**: Intelligent hole distribution scaling with difficulty (2-3 holes in early levels, exponential scaling)
+- **Audio Integration**: Procedural sound effects for hole appearance and disappearance
+- **Performance Optimization**: Efficient rendering with proper filtering during hidden phases
+
+#### Debug System Improvements
+- **Fixed Instant Win**: Debug instant win (W key) now properly initializes scoring system and timer before completion
+- **Proper State Management**: Ensures both UnifiedScoringSystem and Level class are properly started before force completion
+- **Error Prevention**: Eliminates "Level not started - call startLevel() first" errors in debug mode
+- **Comprehensive Testing**: Debug tools now work reliably for testing and development
+
+#### Technical Implementation Details
+```typescript
+// ASCII grid parsing with consecutive character grouping
+private parseConsecutiveCharacters(grid: string[], char: string): Hole[] {
+  const holes: Hole[] = [];
+  for (let row = 0; row < grid.length; row++) {
+    let startCol = -1;
+    for (let col = 0; col < grid[row].length; col++) {
+      if (grid[row][col] === char) {
+        if (startCol === -1) startCol = col;
+      } else if (startCol !== -1) {
+        // Group consecutive characters as single hole
+        const centerCol = startCol + (col - startCol - 1) / 2;
+        holes.push(this.createHoleFromGridPosition(row, centerCol, char));
+        startCol = -1;
+      }
+    }
+  }
+  return holes;
+}
+
+// Moving hole ping-pong behavior
+updateMovingHoles(currentTime: number): void {
+  holes.forEach(hole => {
+    if (hole.movementType === 'moving' && hole.movementState) {
+      const state = hole.movementState;
+      const elapsed = currentTime - state.lastUpdate;
+      const progress = elapsed / state.duration;
+      
+      if (progress >= 1) {
+        // Reverse direction at bounds
+        state.direction *= -1;
+        state.lastUpdate = currentTime;
+        state.progress = 0;
+      } else {
+        state.progress = progress;
+      }
+      
+      // Update position based on movement axis
+      const bounds = hole.movementBounds!;
+      const range = bounds.max - bounds.min;
+      const offset = (state.progress * range * state.direction);
+      hole.position[hole.movementAxis!] = bounds.min + range/2 + offset;
+    }
+  });
+}
+
+// Debug instant win with proper initialization
+private debugInstantWin(): void {
+  const levelId = this.currentLevel.getLevelData().id;
+  this.unifiedScoringSystem.startLevel(levelId);
+  this.unifiedScoringSystem.startTimer(); // Fixed: Added timer start
+  
+  this.currentLevel.start();
+  this.currentLevel.startTimer();
+  
+  this.currentLevel.debugForceComplete();
+  this.handleLevelComplete();
+}
+```
+
+#### Level Design Workflow
+- **ASCII Grid Creation**: Designers create levels using simple ASCII grids in YAML files
+- **Visual Mapping**: Clear 36px × 32px cell mapping for precise hole placement
+- **Movement Definition**: Moving holes defined with bounds and timing parameters
+- **Animation Configuration**: Animated holes with appearance/disappearance timing
+- **Testing & Iteration**: Rapid level testing and iteration using debug tools
+
+---
+
+## Previous Development Updates - Version 1.1.0 🎵 DRAMATIC AUDIO-REACTIVE TITLE & UI POLISH
 
 ### Phase 13: Audio-Reactive Main Title & Attract Mode Update ✅ COMPLETE
 

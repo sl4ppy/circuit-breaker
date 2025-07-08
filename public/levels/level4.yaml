@@ -1,0 +1,21 @@
+id: 4
+name: "Goal Gauntlet"
+description: "Three goals, two moving hole paths, and more animated holes."
+cellWidth: 36
+cellHeight: 36
+offsetX: 18
+offsetY: 60
+grid: |
+  ...G..G..G.
+  ....O.....
+  .A..M..A.A
+  O...M.....
+  .O..M..A..
+  ....M....O
+  A.O..O..O.
+  ..........
+  ....P..P..
+  ..........
+  ..O..O..O.
+  ..........
+  .......... 

@@ -63,10 +63,10 @@ export class Game {
     lastScoringTime: number;
     scoringInterval: number; // 50ms = 1/20th second
   } = {
-    isActive: false,
-    lastScoringTime: 0,
-    scoringInterval: 50, // 50ms = 1/20th second
-  };
+      isActive: false,
+      lastScoringTime: 0,
+      scoringInterval: 50, // 50ms = 1/20th second
+    };
 
   // Hole animation state
   private isAnimatingHoleFall: boolean = false;
@@ -450,7 +450,7 @@ export class Game {
         this.inputManager.isMouseJustPressed()
       ) {
         logger.info('🎮 Starting new game...', null, 'Game');
-        this.startNewGame();
+        void this.startNewGame();
         this.menuTimer = 0; // Reset timer
 
         // Resume audio context on user interaction (required by browsers)
@@ -497,6 +497,13 @@ export class Game {
       if (this.inputManager.isKeyJustPressed('KeyH')) {
         logger.info('❓ Opening how to play screen...', null, 'Game');
         this.openHowToPlay();
+        this.menuTimer = 0; // Reset timer
+      }
+
+      // Handle level reload key (F key) - for development
+      if (this.inputManager.isKeyJustPressed('KeyF')) {
+        logger.info('🔄 Force reloading levels from YAML files...', null, 'Game');
+        void this.levelManager.forceReloadLevels();
         this.menuTimer = 0; // Reset timer
       }
 
@@ -769,6 +776,7 @@ export class Game {
       // Start the timer when player first moves the bar
       if (this.currentLevel && !this.currentLevel.hasTimerStarted() && (leftSideInput !== 0 || rightSideInput !== 0)) {
         this.currentLevel.startTimer();
+        this.unifiedScoringSystem.startTimer(); // Also start unified scoring timer
       }
 
       this.tiltingBar.moveLeftSide(leftSideInput);
@@ -821,6 +829,15 @@ export class Game {
             : false;
         this.renderer.drawHole(hole, isCompleted, this.gameState.isDebugMode());
       }
+      
+      // Draw goal holes separately (they're stored in goalHoles array)
+      for (const goalHole of levelData.goalHoles) {
+        // Check if this goal hole has been completed
+        const isCompleted = this.currentLevel
+          ? this.currentLevel.isGoalCompleted(goalHole.id)
+          : false;
+        this.renderer.drawHole(goalHole, isCompleted, this.gameState.isDebugMode());
+      }
     }
 
     // Render tilting bar AFTER holes (so it appears on top)
@@ -833,27 +850,24 @@ export class Game {
       // Draw essential UI (always visible)
       const ctx = this.renderer.getContext();
       if (ctx) {
+        // TOP LEFT: Level Points only (no labels)
         ctx.fillStyle = '#00f0ff'; // Electric Blue
         fontManager.setFont(ctx, 'primary', 12);
         ctx.textAlign = 'left';
-        ctx.fillText(`Level: ${levelData.id} - ${levelData.name}`, 10, 20);
         
-        // Display unified total score
-        const totalScore = this.unifiedScoringSystem.getCurrentTotalScore();
-        ctx.fillText(`Total Score: ${totalScore.toFixed(1)}`, 10, 35);
-        
-        // Display current level points preview
+        // Display current level points preview only
         const currentLevelStatus = this.unifiedScoringSystem.getCurrentLevelStatus();
         if (currentLevelStatus.isActive) {
           const levelPointsPreview = this.unifiedScoringSystem.getLevelPointsPreview(levelData.id);
-          ctx.fillText(`Level Points: ${levelPointsPreview.toFixed(1)}`, 10, 50);
+          ctx.fillText(`${levelPointsPreview.toFixed(1)}`, 10, 20);
         } else {
-          ctx.fillText(`Level Points: --.-`, 10, 50);
+          // Show maximum possible score when timer hasn't started
+          const maxScore = this.unifiedScoringSystem.getMaxLevelScore(levelData.id);
+          ctx.fillText(`${maxScore.toFixed(1)}`, 10, 20);
         }
         
-        ctx.fillText(`Lives: ${this.gameState.getStateData().lives}`, 10, 65);
-        
-        // Display timer with unified scoring status
+        // CENTER TOP: Time (larger font, no label)
+        ctx.textAlign = 'center';
         if (currentLevelStatus.isActive) {
           const rawTime = currentLevelStatus.rawTime;
           const minutes = Math.floor(rawTime / 60);
@@ -866,10 +880,17 @@ export class Game {
             adjustmentText = ` (${currentLevelStatus.timeReductions > 0 ? '-' + currentLevelStatus.timeReductions.toFixed(1) : ''}${currentLevelStatus.assistPenalties > 0 ? '+' + currentLevelStatus.assistPenalties.toFixed(1) : ''})`;
           }
           
-          ctx.fillText(`Time: ${timeDisplay}${adjustmentText}`, 10, 80);
+          fontManager.setFont(ctx, 'primary', 24); // 50% larger font (16 * 1.5 = 24)
+          ctx.fillText(`${timeDisplay}${adjustmentText}`, 180, 25);
         } else {
-          ctx.fillText(`Time: --:---.---`, 10, 80);
+          fontManager.setFont(ctx, 'primary', 24); // 50% larger font (16 * 1.5 = 24)
+          ctx.fillText('0:000.000', 180, 25);
         }
+        
+        // BOTTOM RIGHT: Lives
+        ctx.textAlign = 'right';
+        fontManager.setFont(ctx, 'primary', 12);
+        ctx.fillText(`Lives: ${this.gameState.getStateData().lives}`, 350, 620);
 
         // Debug information (only visible in debug mode)
         if (this.gameState.isDebugMode()) {
@@ -2215,7 +2236,7 @@ export class Game {
   /**
    * Start a new game (used when clicking from menu)
    */
-  private startNewGame(): void {
+  private async startNewGame(): Promise<void> {
     logger.info('🎮 Starting new game...', null, 'Game');
 
     // Record game start event
@@ -2242,7 +2263,7 @@ export class Game {
     });
 
     // Regenerate all levels for fresh layouts each run
-    this.levelManager.regenerateLevels();
+    await this.levelManager.regenerateLevels();
 
     // Load first level
     this.currentLevel = this.levelManager.loadLevel(1, (soundName: string) => {
@@ -2901,7 +2922,7 @@ export class Game {
       this.audioManager.setEnabled(savedProgress.settings.audioEnabled);
       
       // Start game with loaded progress
-      this.startNewGame();
+      void this.startNewGame();
     } else {
       logger.warn(`⚠️ No save data found in slot ${slotId}`, null, 'Game');
     }
@@ -2918,7 +2939,7 @@ export class Game {
     this.currentSaveSlot = slotId;
     
     // Start new game (this will regenerate levels)
-    this.startNewGame();
+    void this.startNewGame();
   }
 
   /**
@@ -3003,6 +3024,15 @@ export class Game {
     }
 
     logger.info('🧪 DEBUG: Force completing current level...', null, 'Game');
+
+    // Ensure scoring system is started for this level
+    const levelId = this.currentLevel.getLevelData().id;
+    this.unifiedScoringSystem.startLevel(levelId);
+    this.unifiedScoringSystem.startTimer();
+
+    // Ensure the level is started and timer is running (simulate first input)
+    this.currentLevel.start();
+    this.currentLevel.startTimer();
 
     // Force complete the level
     this.currentLevel.debugForceComplete();

@@ -1023,11 +1023,9 @@ export class AudioManager {
     let bassSum = 0;
     let midSum = 0;
     let trebleSum = 0;
-    let overallSum = 0;
 
     for (let i = 0; i < bufferLength; i++) {
       const value = dataArray[i] / 255; // Normalize to 0-1
-      overallSum += value;
 
       if (i < bassRange) {
         bassSum += value;
@@ -1042,7 +1040,7 @@ export class AudioManager {
       bass: bassSum / bassRange,
       mid: midSum / midRange,
       treble: trebleSum / (bufferLength - bassRange - midRange),
-      overall: (bassSum * 0.6 + midSum * 0.3 + trebleSum * 0.1) / bufferLength // Emphasize bass for beats
+      overall: (bassSum * 0.6 + midSum * 0.3 + trebleSum * 0.1) / bufferLength, // Emphasize bass for beats
     };
   }
 
