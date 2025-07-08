@@ -21,7 +21,7 @@
 
 @font-face {
   font-family: 'Interceptor';
-  src: url('/public/assets/fonts/Interceptor.otf') format('opentype');
+  src: url('/assets/fonts/Interceptor.otf') format('opentype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;

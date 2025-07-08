@@ -55,7 +55,7 @@ export class FontManager {
         try {
           const interceptorRegular = new FontFace(
             'Interceptor',
-            'url("/public/assets/fonts/Interceptor.otf")',
+            'url("/assets/fonts/Interceptor.otf")',
           );
           const interceptorItalic = new FontFace(
             'Interceptor',
